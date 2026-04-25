@@ -3,7 +3,9 @@ import Metal
 import QuartzCore
 
 public final class VideoView: NSView {
-    private var metalLayer: CAMetalLayer!
+    private var _metalLayer: CAMetalLayer!
+
+    public var metalLayer: CAMetalLayer { _metalLayer }
 
     public override init(frame: NSRect) {
         super.init(frame: frame)
@@ -22,7 +24,7 @@ public final class VideoView: NSView {
         layer.pixelFormat = .bgra8Unorm
         layer.framebufferOnly = true
         layer.backgroundColor = NSColor.black.cgColor
-        self.metalLayer = layer
+        self._metalLayer = layer
         self.layer = layer
     }
 

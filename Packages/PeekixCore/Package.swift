@@ -35,6 +35,7 @@ let package = Package(
         .target(
             name: "PeekixCore",
             dependencies: ["CFFmpeg"],
+            exclude: ["Shaders.metal"],
             swiftSettings: [
                 .unsafeFlags(["-I", ffmpegInclude])
             ],

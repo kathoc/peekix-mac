@@ -1,0 +1,14 @@
+prefix=/Users/sonohoka/Documents/Playground/peekix-mac/Vendor/ffmpeg
+exec_prefix=${prefix}
+libdir=/Users/sonohoka/Documents/Playground/peekix-mac/Vendor/ffmpeg/lib
+includedir=/Users/sonohoka/Documents/Playground/peekix-mac/Vendor/ffmpeg/include
+
+Name: libavfilter
+Description: FFmpeg audio/video filtering library
+Version: 9.12.100
+Requires: libavutil >= 58.29.100
+Requires.private: 
+Conflicts:
+Libs: -L${libdir}  -lavfilter -pthread -lm
+Libs.private: 
+Cflags: -I${includedir}

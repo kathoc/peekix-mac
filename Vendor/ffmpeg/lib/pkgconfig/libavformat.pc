@@ -1,0 +1,14 @@
+prefix=/Users/sonohoka/Documents/Playground/peekix-mac/Vendor/ffmpeg
+exec_prefix=${prefix}
+libdir=/Users/sonohoka/Documents/Playground/peekix-mac/Vendor/ffmpeg/lib
+includedir=/Users/sonohoka/Documents/Playground/peekix-mac/Vendor/ffmpeg/include
+
+Name: libavformat
+Description: FFmpeg container format library
+Version: 60.16.100
+Requires: libavcodec >= 60.31.102, libavutil >= 58.29.100
+Requires.private: 
+Conflicts:
+Libs: -L${libdir}  -lavformat -lm -lz
+Libs.private: 
+Cflags: -I${includedir}

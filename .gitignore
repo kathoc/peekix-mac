@@ -1,0 +1,23 @@
+# macOS
+.DS_Store
+
+# Xcode
+build/
+DerivedData/
+*.xcuserdata/
+*.xcuserstate
+xcuserdata/
+*.xcworkspace/xcuserdata/
+
+# Swift Package Manager
+.build/
+.swiftpm/
+Package.resolved
+
+# FFmpeg intermediate build (sources, object files). Final libs and headers
+# under Vendor/ffmpeg/{lib,include} are checked in.
+.ffmpeg-build/
+.ffmpeg-build.log
+
+# Logs / artifacts
+*.log

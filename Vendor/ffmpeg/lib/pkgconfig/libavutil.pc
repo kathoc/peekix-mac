@@ -1,0 +1,14 @@
+prefix=/Users/sonohoka/Documents/Playground/peekix-mac/Vendor/ffmpeg
+exec_prefix=${prefix}
+libdir=/Users/sonohoka/Documents/Playground/peekix-mac/Vendor/ffmpeg/lib
+includedir=/Users/sonohoka/Documents/Playground/peekix-mac/Vendor/ffmpeg/include
+
+Name: libavutil
+Description: FFmpeg utility library
+Version: 58.29.100
+Requires: 
+Requires.private: 
+Conflicts:
+Libs: -L${libdir}  -lavutil -pthread -lm -framework VideoToolbox -L/opt/homebrew/Cellar/libx11/1.8.13/lib -lX11 -framework CoreFoundation -framework CoreMedia -framework CoreVideo -framework CoreServices
+Libs.private: 
+Cflags: -I${includedir}

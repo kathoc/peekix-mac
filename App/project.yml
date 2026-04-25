@@ -1,0 +1,64 @@
+name: Peekix
+options:
+  bundleIdPrefix: app.peekix
+  deploymentTarget:
+    macOS: "13.0"
+  createIntermediateGroups: true
+  groupSortPosition: top
+configs:
+  Debug: debug
+  Release: release
+settings:
+  base:
+    ARCHS: arm64
+    VALID_ARCHS: arm64
+    ONLY_ACTIVE_ARCH: NO
+    MACOSX_DEPLOYMENT_TARGET: "13.0"
+    SWIFT_VERSION: "5.0"
+    SWIFT_STRICT_CONCURRENCY: complete
+    CODE_SIGN_STYLE: Automatic
+    ENABLE_HARDENED_RUNTIME: YES
+    ENABLE_APP_SANDBOX: YES
+    DEAD_CODE_STRIPPING: YES
+  configs:
+    Release:
+      SWIFT_OPTIMIZATION_LEVEL: "-O"
+      GCC_OPTIMIZATION_LEVEL: s
+      DEBUG_INFORMATION_FORMAT: dwarf-with-dsym
+      STRIP_INSTALLED_PRODUCT: YES
+      COPY_PHASE_STRIP: YES
+packages:
+  PeekixCore:
+    path: ../Packages/PeekixCore
+  PeekixSession:
+    path: ../Packages/PeekixSession
+  PeekixUI:
+    path: ../Packages/PeekixUI
+  PeekixStore:
+    path: ../Packages/PeekixStore
+targets:
+  Peekix:
+    type: application
+    platform: macOS
+    sources:
+      - path: Peekix
+        excludes:
+          - "Info.plist"
+          - "Peekix.entitlements"
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.peekix.mac
+        PRODUCT_NAME: Peekix
+        INFOPLIST_FILE: Peekix/Info.plist
+        CODE_SIGN_ENTITLEMENTS: Peekix/Peekix.entitlements
+        GENERATE_INFOPLIST_FILE: NO
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+    dependencies:
+      - package: PeekixCore
+        product: PeekixCore
+      - package: PeekixSession
+        product: PeekixSession
+      - package: PeekixUI
+        product: PeekixUI
+      - package: PeekixStore
+        product: PeekixStore

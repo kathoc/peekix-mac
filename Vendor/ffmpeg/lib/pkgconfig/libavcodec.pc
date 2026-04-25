@@ -1,0 +1,14 @@
+prefix=/Users/sonohoka/Documents/Playground/peekix-mac/Vendor/ffmpeg
+exec_prefix=${prefix}
+libdir=/Users/sonohoka/Documents/Playground/peekix-mac/Vendor/ffmpeg/lib
+includedir=/Users/sonohoka/Documents/Playground/peekix-mac/Vendor/ffmpeg/include
+
+Name: libavcodec
+Description: FFmpeg codec library
+Version: 60.31.102
+Requires: libavutil >= 58.29.100
+Requires.private: 
+Conflicts:
+Libs: -L${libdir}  -lavcodec -pthread -liconv -lm
+Libs.private: 
+Cflags: -I${includedir}

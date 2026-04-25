@@ -1,0 +1,14 @@
+prefix=/Users/sonohoka/Documents/Playground/peekix-mac/Vendor/ffmpeg
+exec_prefix=${prefix}
+libdir=/Users/sonohoka/Documents/Playground/peekix-mac/Vendor/ffmpeg/lib
+includedir=/Users/sonohoka/Documents/Playground/peekix-mac/Vendor/ffmpeg/include
+
+Name: libavdevice
+Description: FFmpeg device handling library
+Version: 60.3.100
+Requires: libavformat >= 60.16.100, libavcodec >= 60.31.102, libavutil >= 58.29.100
+Requires.private: 
+Conflicts:
+Libs: -L${libdir}  -lavdevice -lm
+Libs.private: 
+Cflags: -I${includedir}

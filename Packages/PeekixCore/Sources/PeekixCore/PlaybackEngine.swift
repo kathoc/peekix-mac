@@ -1,3 +1,4 @@
+import AVFoundation
 import CFFmpeg
 import CoreMedia
 import CoreVideo
@@ -61,8 +62,115 @@ public final class PlaybackEngine: @unchecked Sendable {
     private let cancelLock = NSLock()
     private var _isCancelled = false
     private var _isRunning = false
+    private var _isMuted = false
 
-    public init() {}
+    // NOTE: 現状このエンジンは映像のみをデコードし、音声デコード/出力は未実装。
+    // 以下の mute/unmute API は将来の音声パイプライン用フラグ保持のみで、
+    // 実際の音声出力への影響はない。
+    public var isMuted: Bool {
+        cancelLock.lock(); defer { cancelLock.unlock() }
+        return _isMuted
+    }
+
+    public func mute() {
+        cancelLock.lock(); _isMuted = true; cancelLock.unlock()
+        DispatchQueue.main.async { [weak self] in self?.audioPlayerNode?.volume = 0 }
+    }
+
+    public func unmute() {
+        cancelLock.lock(); _isMuted = false; cancelLock.unlock()
+        DispatchQueue.main.async { [weak self] in self?.audioPlayerNode?.volume = 1 }
+    }
+
+    // MARK: - Audio output
+
+    private var audioEngine: AVAudioEngine?
+    private var audioPlayerNode: AVAudioPlayerNode?
+    private var audioFormat: AVAudioFormat?
+
+    private func setupAudioOutput(sampleRate: Double, channels: Int) {
+        let chs = AVAudioChannelCount(max(1, min(2, channels)))
+        guard let format = AVAudioFormat(standardFormatWithSampleRate: sampleRate, channels: chs) else { return }
+        let isMutedNow = self.isMuted
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.teardownAudioOutput()
+            let engine = AVAudioEngine()
+            let node = AVAudioPlayerNode()
+            engine.attach(node)
+            engine.connect(node, to: engine.mainMixerNode, format: format)
+            do {
+                try engine.start()
+            } catch {
+                self.logger.error("AVAudioEngine.start failed: \(String(describing: error), privacy: .public)")
+                return
+            }
+            node.volume = isMutedNow ? 0 : 1
+            node.play()
+            self.audioEngine = engine
+            self.audioPlayerNode = node
+            self.audioFormat = format
+            self.logger.info("audio engine started: sr=\(Int(sampleRate), privacy: .public) ch=\(Int(chs), privacy: .public)")
+        }
+    }
+
+    private func teardownAudioOutput() {
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.audioPlayerNode?.stop()
+            self.audioEngine?.stop()
+            self.audioPlayerNode = nil
+            self.audioEngine = nil
+            self.audioFormat = nil
+        }
+    }
+
+    fileprivate func decodeAndScheduleAudio(frame: UnsafeMutablePointer<AVFrame>,
+                                            swr: OpaquePointer,
+                                            outChannels: Int,
+                                            outSampleRate: Int) {
+        guard outChannels > 0 else { return }
+        let inSamples = Int(frame.pointee.nb_samples)
+        guard inSamples > 0 else { return }
+        let outCapacity = max(Int(swr_get_out_samples(swr, Int32(inSamples))), inSamples + 256)
+        guard let format = AVAudioFormat(standardFormatWithSampleRate: Double(outSampleRate),
+                                         channels: AVAudioChannelCount(outChannels)) else { return }
+        guard let pcm = AVAudioPCMBuffer(pcmFormat: format,
+                                         frameCapacity: AVAudioFrameCount(outCapacity)) else { return }
+        guard let channelData = pcm.floatChannelData else { return }
+
+        var outPtrs: [UnsafeMutablePointer<UInt8>?] = (0..<outChannels).map { idx in
+            UnsafeMutableRawPointer(channelData[idx]).assumingMemoryBound(to: UInt8.self)
+        }
+        let written = outPtrs.withUnsafeMutableBufferPointer { buf -> Int32 in
+            cffmpeg_swr_convert_to_float(swr, buf.baseAddress, Int32(outCapacity), frame)
+        }
+        if written > 0 {
+            pcm.frameLength = AVAudioFrameCount(written)
+            scheduleAudioBuffer(pcm)
+        }
+    }
+
+    fileprivate func scheduleAudioBuffer(_ buffer: AVAudioPCMBuffer) {
+        DispatchQueue.main.async { [weak self] in
+            guard let self, let node = self.audioPlayerNode else { return }
+            node.scheduleBuffer(buffer, completionHandler: nil)
+        }
+    }
+
+    private var decodedFrameCount: UInt64 = 0
+    private var firstFrameLogged = false
+
+    private static let networkInit: Void = {
+        let r = avformat_network_init()
+        Logger(subsystem: "app.peekix.mac", category: "PlaybackEngine")
+            .info("avformat_network_init -> \(r, privacy: .public)")
+        return ()
+    }()
+
+    public init() {
+        _ = PlaybackEngine.networkInit
+    }
 
     public func start(url: URL, transport: RTSPTransport) {
         cancelLock.lock()
@@ -74,6 +182,8 @@ public final class PlaybackEngine: @unchecked Sendable {
         _isCancelled = false
         _isRunning = true
         cancelLock.unlock()
+        decodedFrameCount = 0
+        firstFrameLogged = false
 
         emitStatus(.connecting)
         let urlString = url.absoluteString
@@ -116,6 +226,19 @@ public final class PlaybackEngine: @unchecked Sendable {
     }
 
     fileprivate func handleDecodedFrame(_ buffer: CVImageBuffer, pts: CMTime) {
+        decodedFrameCount &+= 1
+        if !firstFrameLogged {
+            firstFrameLogged = true
+            let pf = CVPixelBufferGetPixelFormatType(buffer)
+            let w = CVPixelBufferGetWidth(buffer)
+            let h = CVPixelBufferGetHeight(buffer)
+            let fourCC = String(format: "%c%c%c%c",
+                                (pf >> 24) & 0xFF, (pf >> 16) & 0xFF, (pf >> 8) & 0xFF, pf & 0xFF)
+            logger.info("first decoded frame: \(w, privacy: .public)x\(h, privacy: .public) pixelFormat=\(fourCC, privacy: .public) (0x\(String(pf, radix: 16), privacy: .public))")
+        }
+        if decodedFrameCount % 120 == 0 {
+            logger.info("decoded frames: \(self.decodedFrameCount, privacy: .public)")
+        }
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
             self.delegate?.playbackEngine(self, didOutputFrame: buffer, pts: pts)
@@ -135,6 +258,7 @@ public final class PlaybackEngine: @unchecked Sendable {
         av_dict_set(&options, "probesize", "32768", 0)
         av_dict_set(&options, "stimeout", "5000000", 0)
 
+        logger.info("avformat_open_input: transport=\(transport.rawValue, privacy: .public)")
         let openRet = avformat_open_input(&formatCtx, urlString, nil, &options)
         if options != nil {
             av_dict_free(&options)
@@ -143,6 +267,7 @@ public final class PlaybackEngine: @unchecked Sendable {
             emitError(PlaybackEngineError.openFailed(openRet))
             return
         }
+        logger.info("avformat_open_input ok")
 
         defer {
             if formatCtx != nil {
@@ -160,15 +285,18 @@ public final class PlaybackEngine: @unchecked Sendable {
         var videoStreamIndex: Int32 = -1
         var codecId: AVCodecID = AV_CODEC_ID_NONE
         var stream: UnsafeMutablePointer<AVStream>? = nil
+        var audioStreamIndex: Int32 = -1
         let nbStreams = Int(ctx.pointee.nb_streams)
         for i in 0..<nbStreams {
             guard let s = ctx.pointee.streams[i], let cp = s.pointee.codecpar else { continue }
-            if cp.pointee.codec_type == AVMEDIA_TYPE_VIDEO &&
+            if videoStreamIndex < 0 &&
+                cp.pointee.codec_type == AVMEDIA_TYPE_VIDEO &&
                 (cp.pointee.codec_id == AV_CODEC_ID_H264 || cp.pointee.codec_id == AV_CODEC_ID_HEVC) {
                 videoStreamIndex = Int32(i)
                 codecId = cp.pointee.codec_id
                 stream = s
-                break
+            } else if audioStreamIndex < 0 && cp.pointee.codec_type == AVMEDIA_TYPE_AUDIO {
+                audioStreamIndex = Int32(i)
             }
         }
         guard videoStreamIndex >= 0, let videoStream = stream else {
@@ -210,7 +338,72 @@ public final class PlaybackEngine: @unchecked Sendable {
             VTDecompressionSessionInvalidate(session)
         }
 
+        // ----- Audio decoder setup (optional) -----
+        var audioCodecCtx: UnsafeMutablePointer<AVCodecContext>? = nil
+        var swrCtx: OpaquePointer? = nil
+        var audioOutChannels: Int = 0
+        var audioOutSampleRate: Int = 0
+        var audioFrame: UnsafeMutablePointer<AVFrame>? = nil
+        if audioStreamIndex >= 0,
+           let astream = ctx.pointee.streams[Int(audioStreamIndex)],
+           let acp = astream.pointee.codecpar {
+            if let codec = avcodec_find_decoder(acp.pointee.codec_id),
+               let actx = avcodec_alloc_context3(codec) {
+                if avcodec_parameters_to_context(actx, acp) >= 0,
+                   avcodec_open2(actx, codec, nil) >= 0 {
+                    let srcSR = Int(cffmpeg_codec_ctx_sample_rate(actx))
+                    let srcCh = Int(cffmpeg_codec_ctx_channels(actx))
+                    if srcSR > 0 && srcCh > 0 {
+                        let outCh = min(2, srcCh)
+                        var swr: OpaquePointer? = nil
+                        let setup = cffmpeg_swr_setup_for_decoder(&swr, actx, Int32(srcSR), Int32(outCh), Int32(cffmpeg_av_sample_fmt_fltp()))
+                        if setup >= 0, swr != nil {
+                            swrCtx = swr
+                            audioCodecCtx = actx
+                            audioOutChannels = outCh
+                            audioOutSampleRate = srcSR
+                            audioFrame = av_frame_alloc()
+                            setupAudioOutput(sampleRate: Double(srcSR), channels: outCh)
+                            logger.info("audio decoder ready: codec_id=\(acp.pointee.codec_id.rawValue, privacy: .public) sr=\(srcSR, privacy: .public) ch=\(srcCh, privacy: .public) outCh=\(outCh, privacy: .public)")
+                        } else {
+                            var p: UnsafeMutablePointer<AVCodecContext>? = actx
+                            avcodec_free_context(&p)
+                            audioStreamIndex = -1
+                            logger.error("swr setup failed (\(setup, privacy: .public)); audio disabled")
+                        }
+                    } else {
+                        var p: UnsafeMutablePointer<AVCodecContext>? = actx
+                        avcodec_free_context(&p)
+                        audioStreamIndex = -1
+                    }
+                } else {
+                    var p: UnsafeMutablePointer<AVCodecContext>? = actx
+                    avcodec_free_context(&p)
+                    audioStreamIndex = -1
+                    logger.error("audio decoder open failed; audio disabled")
+                }
+            } else {
+                audioStreamIndex = -1
+                logger.notice("no decoder for audio codec id \(acp.pointee.codec_id.rawValue, privacy: .public)")
+            }
+        }
+        defer {
+            if audioFrame != nil {
+                var f: UnsafeMutablePointer<AVFrame>? = audioFrame
+                av_frame_free(&f)
+            }
+            if swrCtx != nil {
+                var s: OpaquePointer? = swrCtx
+                swr_free(&s)
+            }
+            if audioCodecCtx != nil {
+                avcodec_free_context(&audioCodecCtx)
+            }
+            teardownAudioOutput()
+        }
+
         emitStatus(.playing)
+        logger.info("VTDecompressionSession created; entering demux loop")
 
         guard let packet = av_packet_alloc() else {
             emitError(PlaybackEngineError.readFailed(-1))
@@ -224,6 +417,7 @@ public final class PlaybackEngine: @unchecked Sendable {
         let timeBase = videoStream.pointee.time_base
         let nopts = cffmpeg_av_nopts_value()
         let eagain = cffmpeg_averror_eagain()
+        var videoPacketCount: UInt64 = 0
 
         while !isCancelled {
             let r = av_read_frame(ctx, packet)
@@ -235,7 +429,30 @@ public final class PlaybackEngine: @unchecked Sendable {
                 emitError(PlaybackEngineError.readFailed(r))
                 break
             }
+            if audioStreamIndex >= 0,
+               packet.pointee.stream_index == audioStreamIndex,
+               let actx = audioCodecCtx,
+               let swr = swrCtx,
+               let aframe = audioFrame {
+                if avcodec_send_packet(actx, packet) >= 0 {
+                    while true {
+                        let r = avcodec_receive_frame(actx, aframe)
+                        if r == eagain || r == cffmpeg_averror_eof() { break }
+                        if r < 0 { break }
+                        decodeAndScheduleAudio(frame: aframe,
+                                               swr: swr,
+                                               outChannels: audioOutChannels,
+                                               outSampleRate: audioOutSampleRate)
+                    }
+                }
+                av_packet_unref(packet)
+                continue
+            }
             if packet.pointee.stream_index == videoStreamIndex {
+                videoPacketCount &+= 1
+                if videoPacketCount == 1 || videoPacketCount % 120 == 0 {
+                    logger.info("video packets received: \(videoPacketCount, privacy: .public)")
+                }
                 let payload = Data(bytes: packet.pointee.data, count: Int(packet.pointee.size))
                 let avcc = Self.annexBToAvcc(payload)
                 let pts = Self.cmTime(from: packet.pointee.pts, fallback: packet.pointee.dts, nopts: nopts, timeBase: timeBase)

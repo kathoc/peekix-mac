@@ -4,6 +4,14 @@ import Metal
 import QuartzCore
 import os
 
+private struct VertexUniforms {
+    var letterboxScale: SIMD2<Float>
+    var zoom: Float
+    var pad0: Float
+    var zoomOffset: SIMD2<Float>
+    var pad1: SIMD2<Float>
+}
+
 public final class MetalRenderer: @unchecked Sendable {
     private let device: MTLDevice
     private let commandQueue: MTLCommandQueue
@@ -11,6 +19,13 @@ public final class MetalRenderer: @unchecked Sendable {
     private var textureCache: CVMetalTextureCache?
     private weak var metalLayer: CAMetalLayer?
     private let logger = Logger(subsystem: "app.peekix.mac", category: "MetalRenderer")
+
+    public var zoomScale: Float = 1.0
+    public var zoomOffset: SIMD2<Float> = SIMD2<Float>(0, 0)
+    public var isSuspended: Bool = false
+
+    public var onVideoSizeChange: ((CGSize) -> Void)?
+    private var lastVideoSize: CGSize = .zero
 
     public init?() {
         guard let device = MTLCreateSystemDefaultDevice() else {
@@ -66,11 +81,23 @@ public final class MetalRenderer: @unchecked Sendable {
         self.metalLayer = layer
     }
 
+    public func resetZoom() {
+        zoomScale = 1.0
+        zoomOffset = SIMD2<Float>(0, 0)
+    }
+
     public func render(pixelBuffer: CVPixelBuffer) {
+        guard !isSuspended else { return }
         guard let layer = metalLayer, let cache = textureCache else { return }
         let width = CVPixelBufferGetWidth(pixelBuffer)
         let height = CVPixelBufferGetHeight(pixelBuffer)
         guard width > 0, height > 0 else { return }
+
+        let size = CGSize(width: width, height: height)
+        if size != lastVideoSize {
+            lastVideoSize = size
+            onVideoSizeChange?(size)
+        }
 
         var yMetal: CVMetalTexture?
         var cbcrMetal: CVMetalTexture?
@@ -89,17 +116,15 @@ public final class MetalRenderer: @unchecked Sendable {
 
         guard let drawable = layer.nextDrawable() else { return }
 
-        let drawSize = layer.drawableSize
-        var scale = SIMD2<Float>(1, 1)
-        if drawSize.width > 0 && drawSize.height > 0 {
-            let videoAspect = Float(width) / Float(height)
-            let drawAspect = Float(drawSize.width / drawSize.height)
-            if videoAspect > drawAspect {
-                scale = SIMD2<Float>(1.0, drawAspect / videoAspect)
-            } else {
-                scale = SIMD2<Float>(videoAspect / drawAspect, 1.0)
-            }
-        }
+        // Window is constrained to the video aspect ratio, so the Metal layer
+        // always renders to its full extent — no letterboxing in the shader.
+        var uniforms = VertexUniforms(
+            letterboxScale: SIMD2<Float>(1, 1),
+            zoom: max(zoomScale, 0.0001),
+            pad0: 0,
+            zoomOffset: zoomOffset,
+            pad1: SIMD2<Float>(0, 0)
+        )
 
         let passDesc = MTLRenderPassDescriptor()
         passDesc.colorAttachments[0].texture = drawable.texture
@@ -113,7 +138,7 @@ public final class MetalRenderer: @unchecked Sendable {
         }
 
         encoder.setRenderPipelineState(pipelineState)
-        encoder.setVertexBytes(&scale, length: MemoryLayout<SIMD2<Float>>.size, index: 0)
+        encoder.setVertexBytes(&uniforms, length: MemoryLayout<VertexUniforms>.size, index: 0)
         encoder.setFragmentTexture(yTexture, index: 0)
         encoder.setFragmentTexture(cbcrTexture, index: 1)
         encoder.drawPrimitives(type: .triangleStrip, vertexStart: 0, vertexCount: 4)
@@ -125,9 +150,6 @@ public final class MetalRenderer: @unchecked Sendable {
         CVMetalTextureCacheFlush(cache, 0)
     }
 
-    // Shader source mirrors Shaders.metal in the same directory. The .metal
-    // file is excluded from the build (no Metal toolchain dependency); we
-    // compile the source at runtime via MTLDevice.makeLibrary(source:).
     fileprivate static let shaderSource: String = """
     #include <metal_stdlib>
     using namespace metal;
@@ -137,12 +159,16 @@ public final class MetalRenderer: @unchecked Sendable {
         float2 texCoord;
     };
 
-    struct LetterboxUniforms {
-        float2 scale;
+    struct VertexUniforms {
+        float2 letterboxScale;
+        float zoom;
+        float pad0;
+        float2 zoomOffset;
+        float2 pad1;
     };
 
     vertex VertexOut vertexShader(uint vid [[vertex_id]],
-                                  constant LetterboxUniforms &u [[buffer(0)]]) {
+                                  constant VertexUniforms &u [[buffer(0)]]) {
         const float2 positions[4] = {
             float2(-1.0, -1.0),
             float2( 1.0, -1.0),
@@ -156,8 +182,10 @@ public final class MetalRenderer: @unchecked Sendable {
             float2(1.0, 0.0)
         };
         VertexOut out;
-        out.position = float4(positions[vid] * u.scale, 0.0, 1.0);
-        out.texCoord = texCoords[vid];
+        out.position = float4(positions[vid] * u.letterboxScale, 0.0, 1.0);
+        float2 tc = texCoords[vid];
+        tc = u.zoomOffset + (tc - 0.5) / u.zoom + 0.5;
+        out.texCoord = tc;
         return out;
     }
 
@@ -165,17 +193,15 @@ public final class MetalRenderer: @unchecked Sendable {
                                    texture2d<float, access::sample> yTex [[texture(0)]],
                                    texture2d<float, access::sample> cbcrTex [[texture(1)]]) {
         constexpr sampler s(address::clamp_to_edge, filter::linear);
-        float y = yTex.sample(s, in.texCoord).r;
-        float2 cbcr = cbcrTex.sample(s, in.texCoord).rg;
-        float3 ycbcr = float3(y, cbcr.r, cbcr.g);
-        const float3x3 m = float3x3(
-            float3(1.164383561,  1.164383561,  1.164383561),
-            float3(0.0,         -0.391762290,  2.017232142),
-            float3(1.596026785, -0.812967647,  0.0)
-        );
-        const float3 bias = float3(-0.0729, 0.5316, -1.0856);
-        float3 rgb = m * ycbcr + bias;
-        return float4(rgb, 1.0);
+        float  y  = yTex.sample(s, in.texCoord).r - (16.0 / 255.0);
+        float2 cc = cbcrTex.sample(s, in.texCoord).rg - float2(0.5, 0.5);
+        float cb = cc.x;
+        float cr = cc.y;
+        float3 rgb;
+        rgb.r = 1.164384 * y                       + 1.792741 * cr;
+        rgb.g = 1.164384 * y - 0.213249 * cb       - 0.532909 * cr;
+        rgb.b = 1.164384 * y + 2.112402 * cb;
+        return float4(saturate(rgb), 1.0);
     }
     """
 }

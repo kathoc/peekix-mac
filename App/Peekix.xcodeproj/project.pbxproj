@@ -16,6 +16,7 @@
 		BC85A7CC28AD0F5C57497754 /* PeekixStore in Frameworks */ = {isa = PBXBuildFile; productRef = 03DA2A58690B3197086DBB5A /* PeekixStore */; };
 		C4A6BC027C27C03153CAC852 /* MainWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A1971843895CF99E35F202F /* MainWindowController.swift */; };
 		EC225C10C2FECC78E75BC1E4 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7ECD5B0AB91521852E0408A0 /* ContentView.swift */; };
+		A1A1A1A1A1A1A1A1A1A1A1A1 /* PlaybackViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2B2B2B2B2B2B2B2B2B2B2B2 /* PlaybackViewModel.swift */; };
 		FF7FE86B5AA834B5369DE6C8 /* PeekixSession in Frameworks */ = {isa = PBXBuildFile; productRef = D29C75488E1E3958B969067A /* PeekixSession */; };
 /* End PBXBuildFile section */
 
@@ -24,6 +25,7 @@
 		353500FBC9FA3F8FBF8CB1C1 /* PreferencesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferencesView.swift; sourceTree = "<group>"; };
 		6F8CCF60912B0A842186CA95 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		7ECD5B0AB91521852E0408A0 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		B2B2B2B2B2B2B2B2B2B2B2B2 /* PlaybackViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackViewModel.swift; sourceTree = "<group>"; };
 		86BE67B6D85FC0B4724DCFCE /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		9A1971843895CF99E35F202F /* MainWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainWindowController.swift; sourceTree = "<group>"; };
 		AF0270EBD32F63D0A1919025 /* PeekixUI */ = {isa = PBXFileReference; lastKnownFileType = folder; name = PeekixUI; path = ../Packages/PeekixUI; sourceTree = SOURCE_ROOT; };
@@ -63,6 +65,7 @@
 				86BE67B6D85FC0B4724DCFCE /* AppDelegate.swift */,
 				6F8CCF60912B0A842186CA95 /* Assets.xcassets */,
 				7ECD5B0AB91521852E0408A0 /* ContentView.swift */,
+				B2B2B2B2B2B2B2B2B2B2B2B2 /* PlaybackViewModel.swift */,
 				9A1971843895CF99E35F202F /* MainWindowController.swift */,
 				0BB1A9C30D41D65336391580 /* PeekixApp.swift */,
 				353500FBC9FA3F8FBF8CB1C1 /* PreferencesView.swift */,
@@ -172,6 +175,7 @@
 			files = (
 				A952537B7036A3A698CEC14C /* AppDelegate.swift in Sources */,
 				EC225C10C2FECC78E75BC1E4 /* ContentView.swift in Sources */,
+				A1A1A1A1A1A1A1A1A1A1A1A1 /* PlaybackViewModel.swift in Sources */,
 				C4A6BC027C27C03153CAC852 /* MainWindowController.swift in Sources */,
 				2F780B2999279F5C803B95B8 /* PeekixApp.swift in Sources */,
 				1D1D2E0DD9E9C92426D43293 /* PreferencesView.swift in Sources */,

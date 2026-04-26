@@ -62,68 +62,14 @@ public final class PlaybackEngine: @unchecked Sendable {
     private let cancelLock = NSLock()
     private var _isCancelled = false
     private var _isRunning = false
-    private var _isMuted = false
 
-    // NOTE: 現状このエンジンは映像のみをデコードし、音声デコード/出力は未実装。
-    // 以下の mute/unmute API は将来の音声パイプライン用フラグ保持のみで、
-    // 実際の音声出力への影響はない。
-    public var isMuted: Bool {
-        cancelLock.lock(); defer { cancelLock.unlock() }
-        return _isMuted
-    }
+    private let audioOutput = AudioOutput()
 
-    public func mute() {
-        cancelLock.lock(); _isMuted = true; cancelLock.unlock()
-        DispatchQueue.main.async { [weak self] in self?.audioPlayerNode?.volume = 0 }
-    }
+    public var isMuted: Bool { audioOutput.isMuted }
 
-    public func unmute() {
-        cancelLock.lock(); _isMuted = false; cancelLock.unlock()
-        DispatchQueue.main.async { [weak self] in self?.audioPlayerNode?.volume = 1 }
-    }
+    public func mute() { audioOutput.setMuted(true) }
 
-    // MARK: - Audio output
-
-    private var audioEngine: AVAudioEngine?
-    private var audioPlayerNode: AVAudioPlayerNode?
-    private var audioFormat: AVAudioFormat?
-
-    private func setupAudioOutput(sampleRate: Double, channels: Int) {
-        let chs = AVAudioChannelCount(max(1, min(2, channels)))
-        guard let format = AVAudioFormat(standardFormatWithSampleRate: sampleRate, channels: chs) else { return }
-        let isMutedNow = self.isMuted
-        DispatchQueue.main.async { [weak self] in
-            guard let self else { return }
-            self.teardownAudioOutput()
-            let engine = AVAudioEngine()
-            let node = AVAudioPlayerNode()
-            engine.attach(node)
-            engine.connect(node, to: engine.mainMixerNode, format: format)
-            do {
-                try engine.start()
-            } catch {
-                self.logger.error("AVAudioEngine.start failed: \(String(describing: error), privacy: .public)")
-                return
-            }
-            node.volume = isMutedNow ? 0 : 1
-            node.play()
-            self.audioEngine = engine
-            self.audioPlayerNode = node
-            self.audioFormat = format
-            self.logger.info("audio engine started: sr=\(Int(sampleRate), privacy: .public) ch=\(Int(chs), privacy: .public)")
-        }
-    }
-
-    private func teardownAudioOutput() {
-        DispatchQueue.main.async { [weak self] in
-            guard let self else { return }
-            self.audioPlayerNode?.stop()
-            self.audioEngine?.stop()
-            self.audioPlayerNode = nil
-            self.audioEngine = nil
-            self.audioFormat = nil
-        }
-    }
+    public func unmute() { audioOutput.setMuted(false) }
 
     fileprivate func decodeAndScheduleAudio(frame: UnsafeMutablePointer<AVFrame>,
                                             swr: OpaquePointer,
@@ -147,14 +93,7 @@ public final class PlaybackEngine: @unchecked Sendable {
         }
         if written > 0 {
             pcm.frameLength = AVAudioFrameCount(written)
-            scheduleAudioBuffer(pcm)
-        }
-    }
-
-    fileprivate func scheduleAudioBuffer(_ buffer: AVAudioPCMBuffer) {
-        DispatchQueue.main.async { [weak self] in
-            guard let self, let node = self.audioPlayerNode else { return }
-            node.scheduleBuffer(buffer, completionHandler: nil)
+            audioOutput.enqueue(pcm)
         }
     }
 
@@ -189,7 +128,24 @@ public final class PlaybackEngine: @unchecked Sendable {
         let urlString = url.absoluteString
         ffmpegQueue.async { [weak self] in
             guard let self else { return }
-            self.runDemux(urlString: urlString, transport: transport)
+            var attempt = 0
+            while !self.isCancelled {
+                attempt += 1
+                if attempt > 1 {
+                    self.emitStatus(.connecting)
+                }
+                self.runDemux(urlString: urlString, transport: transport)
+                if self.isCancelled { break }
+                // Exponential backoff capped at 5s. RTSP 接続失敗 (-65 など) は
+                // 一時的なネットワーク事象が大半なので、URL が設定されている限り
+                // stop() が呼ばれるまで再試行を続ける。
+                let delaySec = min(5.0, 0.5 * Double(1 << min(attempt - 1, 4)))
+                self.logger.notice("reconnect attempt #\(attempt, privacy: .public) in \(delaySec, privacy: .public)s")
+                let deadline = Date().addingTimeInterval(delaySec)
+                while !self.isCancelled && Date() < deadline {
+                    Thread.sleep(forTimeInterval: 0.1)
+                }
+            }
             self.cancelLock.lock()
             self._isRunning = false
             self.cancelLock.unlock()
@@ -363,7 +319,7 @@ public final class PlaybackEngine: @unchecked Sendable {
                             audioOutChannels = outCh
                             audioOutSampleRate = srcSR
                             audioFrame = av_frame_alloc()
-                            setupAudioOutput(sampleRate: Double(srcSR), channels: outCh)
+                            audioOutput.configure(sampleRate: Double(srcSR), channels: outCh)
                             logger.info("audio decoder ready: codec_id=\(acp.pointee.codec_id.rawValue, privacy: .public) sr=\(srcSR, privacy: .public) ch=\(srcCh, privacy: .public) outCh=\(outCh, privacy: .public)")
                         } else {
                             var p: UnsafeMutablePointer<AVCodecContext>? = actx
@@ -399,7 +355,10 @@ public final class PlaybackEngine: @unchecked Sendable {
             if audioCodecCtx != nil {
                 avcodec_free_context(&audioCodecCtx)
             }
-            teardownAudioOutput()
+            // Synchronous teardown so the AVAudioEngine has fully stopped
+            // before this demux iteration returns. Reconnects then start from
+            // a clean slate without overlapping engines.
+            audioOutput.teardownSync()
         }
 
         emitStatus(.playing)

@@ -7,8 +7,22 @@ struct ContentView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            VideoViewRepresentable(viewModel: viewModel)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            ZStack(alignment: .top) {
+                VideoViewRepresentable(viewModel: viewModel)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                if let msg = viewModel.lastScreenshotMessage {
+                    Text(msg)
+                        .font(.callout)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(Color.black.opacity(0.65))
+                        .foregroundColor(.white)
+                        .cornerRadius(6)
+                        .padding(.top, 12)
+                        .transition(.opacity)
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
             // Control bar is always present in the view tree to keep
             // NSHostingView's subview hierarchy stable across fullscreen
             // transitions. Mutating the tree (via `if`) between enter and
@@ -64,6 +78,13 @@ struct ContentView: View {
             .buttonStyle(.borderless)
             .help("フルスクリーン (F)")
 
+            Button(action: { viewModel.captureScreenshot() }) {
+                Image(systemName: "camera.fill")
+                    .frame(width: 18, height: 18)
+            }
+            .buttonStyle(.borderless)
+            .help("画像を保存 (C)")
+
             Spacer()
 
             statusIndicator
@@ -105,6 +126,10 @@ struct ContentView: View {
                 .keyboardShortcut("v", modifiers: [])
             Button("") { viewModel.toggleMiniMode() }
                 .keyboardShortcut("m", modifiers: [])
+            Button("") { viewModel.captureScreenshot() }
+                .keyboardShortcut("c", modifiers: [])
+            Button("") { viewModel.toggleAlwaysOnTop() }
+                .keyboardShortcut("t", modifiers: [])
         }
         .frame(width: 0, height: 0)
         .opacity(0)

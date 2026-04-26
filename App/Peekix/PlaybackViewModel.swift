@@ -1,13 +1,22 @@
 import AppKit
 import Combine
+import CoreImage
 import CoreMedia
 import CoreVideo
 import Foundation
+import ImageIO
 import PeekixCore
+import PeekixStore
 import PeekixUI
+import UniformTypeIdentifiers
 
 enum WindowMode {
     case normal, fullscreen, mini
+}
+
+private struct UncheckedSendable<T>: @unchecked Sendable {
+    let value: T
+    init(_ value: T) { self.value = value }
 }
 
 @MainActor
@@ -21,8 +30,13 @@ final class PlaybackViewModel: NSObject, ObservableObject, PlaybackEngineDelegat
     @Published var isAlwaysOnTop: Bool = false
     @Published var windowMode: WindowMode = .normal
 
+    @Published var lastScreenshotMessage: String?
+
     private let engine = PlaybackEngine()
     private var renderer: MetalRenderer?
+    private let settingsStore = SettingsStore()
+    private let ciContext = CIContext(options: nil)
+    private var latestPixelBuffer: CVPixelBuffer?
     private weak var window: NSWindow?
     private weak var attachedView: VideoView?
 
@@ -460,10 +474,74 @@ final class PlaybackViewModel: NSObject, ObservableObject, PlaybackEngineDelegat
         renderer?.zoomOffset = newOffset
     }
 
-    nonisolated func playbackEngine(_ engine: PlaybackEngine, didOutputFrame pixelBuffer: CVPixelBuffer, pts: CMTime) {}
+    nonisolated func playbackEngine(_ engine: PlaybackEngine, didOutputFrame pixelBuffer: CVPixelBuffer, pts: CMTime) {
+        // didOutputFrame is dispatched on the main queue by PlaybackEngine, so
+        // it's safe to retain the buffer reference for the next screenshot
+        // request without crossing actor boundaries.
+        let unsafe = UncheckedSendable(pixelBuffer)
+        Task { @MainActor in self.latestPixelBuffer = unsafe.value }
+    }
+
+    func captureScreenshot() {
+        guard let buffer = latestPixelBuffer else {
+            setScreenshotMessage("保存できる映像がありません")
+            return
+        }
+        let ci = CIImage(cvPixelBuffer: buffer)
+        guard let cg = ciContext.createCGImage(ci, from: ci.extent) else {
+            setScreenshotMessage("画像の生成に失敗しました")
+            return
+        }
+        let filename = Self.screenshotFilename()
+        do {
+            try settingsStore.withScreenshotDirectoryAccess { dir in
+                try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+                let url = dir.appendingPathComponent(filename)
+                guard let dest = CGImageDestinationCreateWithURL(url as CFURL,
+                                                                 UTType.png.identifier as CFString,
+                                                                 1, nil) else {
+                    throw NSError(domain: "Peekix", code: -1,
+                                  userInfo: [NSLocalizedDescriptionKey: "CGImageDestination の作成に失敗"])
+                }
+                CGImageDestinationAddImage(dest, cg, nil)
+                if !CGImageDestinationFinalize(dest) {
+                    throw NSError(domain: "Peekix", code: -2,
+                                  userInfo: [NSLocalizedDescriptionKey: "PNG の書き出しに失敗"])
+                }
+            }
+            setScreenshotMessage("保存: \(filename)")
+        } catch {
+            setScreenshotMessage("保存失敗: \(error.localizedDescription)")
+        }
+    }
+
+    private var screenshotToastTask: Task<Void, Never>?
+    private func setScreenshotMessage(_ msg: String) {
+        lastScreenshotMessage = msg
+        screenshotToastTask?.cancel()
+        screenshotToastTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 2_500_000_000)
+            guard !Task.isCancelled else { return }
+            self?.lastScreenshotMessage = nil
+        }
+    }
+
+    private static func screenshotFilename() -> String {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.dateFormat = "yyyyMMdd_HHmmss"
+        return "peekix_\(f.string(from: Date())).png"
+    }
 
     nonisolated func playbackEngine(_ engine: PlaybackEngine, didChangeStatus status: PlaybackEngineStatus) {
-        Task { @MainActor in self.status = status }
+        Task { @MainActor in
+            self.status = status
+            // 接続/再生に切り替わった時点で過去のエラー表示はクリア。再試行中に
+            // 古い -65 などの文言が残り続けるのを防ぐ。
+            if status == .connecting || status == .playing {
+                self.errorMessage = nil
+            }
+        }
     }
 
     nonisolated func playbackEngine(_ engine: PlaybackEngine, didEncounterError error: Error) {

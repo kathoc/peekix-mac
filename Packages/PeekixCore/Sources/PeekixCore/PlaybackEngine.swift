@@ -159,6 +159,24 @@ public final class PlaybackEngine: @unchecked Sendable {
         cancelLock.unlock()
     }
 
+    /// Cancel and block (up to `timeout`) until the demux thread has exited
+    /// and `avformat_close_input` has run — which is what causes ffmpeg's
+    /// RTSP demuxer to send a proper `TEARDOWN` to the camera. Use this from
+    /// `NSWorkspaceWillSleepNotification` so the OS still has time to flush
+    /// the network packet before suspending.
+    public func stopAndWait(timeout: TimeInterval) {
+        stop()
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            cancelLock.lock()
+            let running = _isRunning
+            cancelLock.unlock()
+            if !running { return }
+            Thread.sleep(forTimeInterval: 0.02)
+        }
+        logger.notice("stopAndWait: timeout reached after \(timeout, privacy: .public)s")
+    }
+
     private var isCancelled: Bool {
         cancelLock.lock(); defer { cancelLock.unlock() }
         return _isCancelled
@@ -214,7 +232,10 @@ public final class PlaybackEngine: @unchecked Sendable {
         av_dict_set(&options, "probesize", "32768", 0)
         av_dict_set(&options, "stimeout", "5000000", 0)
 
-        logger.info("avformat_open_input: transport=\(transport.rawValue, privacy: .public)")
+        let scheme = URL(string: urlString)?.scheme ?? "?"
+        let host = URL(string: urlString)?.host ?? "?"
+        let port = URL(string: urlString)?.port.map(String.init) ?? "default"
+        logger.info("avformat_open_input: transport=\(transport.rawValue, privacy: .public) scheme=\(scheme, privacy: .public) host=\(host, privacy: .public) port=\(port, privacy: .public)")
         let openRet = avformat_open_input(&formatCtx, urlString, nil, &options)
         if options != nil {
             av_dict_free(&options)

@@ -5,6 +5,7 @@ import CoreMedia
 import CoreVideo
 import Foundation
 import ImageIO
+import os
 import PeekixCore
 import PeekixStore
 import PeekixUI
@@ -40,6 +41,14 @@ final class PlaybackViewModel: NSObject, ObservableObject, PlaybackEngineDelegat
     private weak var window: NSWindow?
     private weak var attachedView: VideoView?
 
+    private let powerObserver = PowerStateObserver()
+    // True when the user's intent is "playing" — set the moment a pause-reason
+    // fires while we're playing/connecting, cleared when we successfully
+    // restart on resume. Drives auto-resume across the pause/resume cycle.
+    private var wantsToPlay = false
+    private var occlusionObserver: NSObjectProtocol?
+    private let powerLogger = Logger(subsystem: "app.peekix.mac", category: "PowerGate")
+
     private var savedNormalStyleMask: NSWindow.StyleMask?
     private var savedFullscreenFrame: NSRect?
 
@@ -60,7 +69,8 @@ final class PlaybackViewModel: NSObject, ObservableObject, PlaybackEngineDelegat
     private var zoomScale: Float = 1.0
     private var zoomOffset: SIMD2<Float> = SIMD2<Float>(0, 0)
 
-    private static let urlKey = "rtspURL"
+    // Must match SettingsStore.lastURLKey — the Preferences UI writes here.
+    private static let urlKey = "lastURL"
     private static let defaultURL = "rtsp://user:pass@host/stream"
 
     private var resolvedURL: URL? {
@@ -73,6 +83,58 @@ final class PlaybackViewModel: NSObject, ObservableObject, PlaybackEngineDelegat
     override init() {
         super.init()
         engine.delegate = self
+        powerObserver.onPause = { [weak self] reason in
+            self?.handlePowerPause(reason: reason)
+        }
+        powerObserver.onResume = { [weak self] _ in
+            self?.handlePowerResume()
+        }
+    }
+
+    private func handlePowerPause(reason: PowerStateObserver.Reason) {
+        powerLogger.info("pause: reason=\(reason.rawValue, privacy: .public) status=\(String(describing: self.status), privacy: .public)")
+        if isPlaying || status == .connecting {
+            wantsToPlay = true
+        }
+        if reason == .systemSleep {
+            // Block briefly so ffmpeg's avformat_close_input completes — that's
+            // what sends RTSP TEARDOWN to the camera. Without this the Eufy
+            // S350 holds the session open until its own keepalive timeout,
+            // which destabilizes the stream for the *other* viewer.
+            engine.stopAndWait(timeout: 5.0)
+            return
+        }
+        // Do NOT cancel an in-flight connect — racing avformat_open_input
+        // surfaces spurious -5 (EIO) and the engine can be stuck mid-teardown
+        // when resume arrives, so engine.start() no-ops. Wait until status
+        // reaches .playing; the status observer (didChangeStatus) tears it
+        // down then.
+        if status == .playing {
+            engine.stop()
+        }
+    }
+
+    private func handlePowerResume() {
+        powerLogger.info("resume: wantsToPlay=\(self.wantsToPlay, privacy: .public) status=\(String(describing: self.status), privacy: .public)")
+        guard wantsToPlay else { return }
+        scheduleResumeAttempt()
+    }
+
+    // Resume must wait for the engine's demux thread to finish (status
+    // .stopped) — engine.start() is a no-op while _isRunning is true.
+    private func scheduleResumeAttempt() {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+            guard let self else { return }
+            guard self.wantsToPlay, self.powerObserver.reasons.isEmpty else { return }
+            switch self.status {
+            case .stopped, .idle:
+                self.wantsToPlay = false
+                self.play()
+            case .connecting, .playing:
+                // Already running — nothing to do.
+                self.wantsToPlay = false
+            }
+        }
     }
 
     var isPlaying: Bool {
@@ -124,6 +186,21 @@ final class PlaybackViewModel: NSObject, ObservableObject, PlaybackEngineDelegat
         window.collectionBehavior = collection
         applyAlwaysOnTop()
         applyWindowAspect()
+
+        if let prev = occlusionObserver {
+            NotificationCenter.default.removeObserver(prev)
+        }
+        occlusionObserver = NotificationCenter.default.addObserver(
+            forName: NSWindow.didChangeOcclusionStateNotification,
+            object: window,
+            queue: .main
+        ) { [weak self] note in
+            guard let w = note.object as? NSWindow else { return }
+            let visible = w.occlusionState.contains(.visible)
+            Task { @MainActor [weak self] in
+                self?.powerObserver.setOccluded(!visible)
+            }
+        }
 
         if let raw = ProcessInfo.processInfo.environment["PEEKIX_FS_STRESS"],
            let n = Int(raw), n > 0 {
@@ -540,6 +617,19 @@ final class PlaybackViewModel: NSObject, ObservableObject, PlaybackEngineDelegat
             // 古い -65 などの文言が残り続けるのを防ぐ。
             if status == .connecting || status == .playing {
                 self.errorMessage = nil
+            }
+            // If a pause reason became active while we were connecting and the
+            // connect just succeeded, tear down now (we deferred this from
+            // handlePowerPause to avoid -5 races with avformat_open_input).
+            if status == .playing, !self.powerObserver.reasons.isEmpty {
+                self.powerLogger.info("late pause: stopping after connect succeeded under active reasons")
+                self.wantsToPlay = true
+                self.engine.stop()
+            }
+            // After the engine fully stopped, if user wants to play and no
+            // reasons are active, restart.
+            if status == .stopped, self.wantsToPlay, self.powerObserver.reasons.isEmpty {
+                self.scheduleResumeAttempt()
             }
         }
     }

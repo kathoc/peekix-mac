@@ -6,46 +6,63 @@ struct ContentView: View {
     @StateObject private var viewModel = PlaybackViewModel()
 
     var body: some View {
-        VStack(spacing: 0) {
-            ZStack(alignment: .top) {
-                VideoViewRepresentable(viewModel: viewModel)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                if let msg = viewModel.lastScreenshotMessage {
-                    Text(msg)
-                        .font(.callout)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .background(Color.black.opacity(0.65))
-                        .foregroundColor(.white)
-                        .cornerRadius(6)
-                        .padding(.top, 12)
-                        .transition(.opacity)
+        GeometryReader { geo in
+            let visible = controlBarVisible(in: geo.size)
+            VStack(spacing: 0) {
+                ZStack(alignment: .top) {
+                    VideoViewRepresentable(viewModel: viewModel)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    if let msg = viewModel.lastScreenshotMessage {
+                        Text(msg)
+                            .font(.callout)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
+                            .background(Color.black.opacity(0.65))
+                            .foregroundColor(.white)
+                            .cornerRadius(6)
+                            .padding(.top, 12)
+                            .transition(.opacity)
+                    }
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                // Control bar is always present in the view tree to keep
+                // NSHostingView's subview hierarchy stable across fullscreen
+                // transitions. Mutating the tree (via `if`) between enter and
+                // exit destabilizes AppKit's region bookkeeping and crashes
+                // _adjustNeedsDisplayRegionForNewFrame on exit. We collapse it
+                // to zero height + hidden when not visible.
+                controlBar
+                    .frame(height: visible ? PlaybackViewModel.controlBarHeight : 0)
+                    .opacity(visible ? 1 : 0)
+                    .allowsHitTesting(visible)
+                    .clipped()
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            // Control bar is always present in the view tree to keep
-            // NSHostingView's subview hierarchy stable across fullscreen
-            // transitions. Mutating the tree (via `if`) between enter and
-            // exit destabilizes AppKit's region bookkeeping and crashes
-            // _adjustNeedsDisplayRegionForNewFrame on exit. We collapse it
-            // to zero height + hidden when not visible.
-            controlBar
-                .frame(height: controlBarVisible ? PlaybackViewModel.controlBarHeight : 0)
-                .opacity(controlBarVisible ? 1 : 0)
-                .allowsHitTesting(controlBarVisible)
-                .clipped()
+            .background(Color.black.ignoresSafeArea())
+            .background(WindowAccessor { window in
+                viewModel.setWindow(window)
+            })
+            .background(keyboardShortcuts)
+            .onAppear { viewModel.startIfNeeded() }
         }
-        .background(Color.black.ignoresSafeArea())
-        .background(WindowAccessor { window in
-            viewModel.setWindow(window)
-        })
-        .background(keyboardShortcuts)
-        .onAppear { viewModel.startIfNeeded() }
     }
 
 
-    private var controlBarVisible: Bool {
-        viewModel.windowMode != .fullscreen && viewModel.windowMode != .mini
+    private func controlBarVisible(in size: CGSize) -> Bool {
+        switch viewModel.windowMode {
+        case .mini:
+            return false
+        case .normal:
+            return true
+        case .fullscreen:
+            // Show the control bar in the bottom letterbox area when the
+            // screen is taller than the video's natural aspect (e.g. a 16:9
+            // video on a 16:10 display) and there is at least controlBarHeight
+            // of vertical slack below the video.
+            guard let a = viewModel.videoAspect, a > 0,
+                  size.width > 0, size.height > 0 else { return false }
+            let videoH = size.width / a
+            return size.height - videoH >= PlaybackViewModel.controlBarHeight
+        }
     }
 
     private var controlBar: some View {

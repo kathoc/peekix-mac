@@ -10,31 +10,34 @@
 		1D1D2E0DD9E9C92426D43293 /* PreferencesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 353500FBC9FA3F8FBF8CB1C1 /* PreferencesView.swift */; };
 		2F780B2999279F5C803B95B8 /* PeekixApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0BB1A9C30D41D65336391580 /* PeekixApp.swift */; };
 		4E2B8EF69A55EC7BA1DB5AF9 /* PeekixUI in Frameworks */ = {isa = PBXBuildFile; productRef = 75C879109304DEACC16AEC2A /* PeekixUI */; };
+		952227C128A2B13536E75D3A /* PowerStateObserver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2EB93E67AF260854FD18CEAF /* PowerStateObserver.swift */; };
 		97F08615DE1D54BF26816683 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 6F8CCF60912B0A842186CA95 /* Assets.xcassets */; };
+		A5ABD0A14F438B2BBFB98F27 /* UpdaterController.swift in Sources */ = {isa = PBXBuildFile; fileRef = F16F288B93FBAE04CB140338 /* UpdaterController.swift */; };
 		A952537B7036A3A698CEC14C /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86BE67B6D85FC0B4724DCFCE /* AppDelegate.swift */; };
-		A111111111111111111111A1 /* PowerStateObserver.swift in Sources */ = {isa = PBXBuildFile; fileRef = A222222222222222222222A2 /* PowerStateObserver.swift */; };
 		ABD8248EECF7509EE9557A4B /* PeekixCore in Frameworks */ = {isa = PBXBuildFile; productRef = 6648B8F634F395CAFD0B20F9 /* PeekixCore */; };
 		BC85A7CC28AD0F5C57497754 /* PeekixStore in Frameworks */ = {isa = PBXBuildFile; productRef = 03DA2A58690B3197086DBB5A /* PeekixStore */; };
 		C4A6BC027C27C03153CAC852 /* MainWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A1971843895CF99E35F202F /* MainWindowController.swift */; };
 		DFFE5319F65EBFA8CB241E75 /* PlaybackViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 368D130385422A30535DC38F /* PlaybackViewModel.swift */; };
+		E7A15B5F75F826DC943DE8C3 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 8FAF7BF62D87C352B2DB7D68 /* Sparkle */; };
 		EC225C10C2FECC78E75BC1E4 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7ECD5B0AB91521852E0408A0 /* ContentView.swift */; };
 		FF7FE86B5AA834B5369DE6C8 /* PeekixSession in Frameworks */ = {isa = PBXBuildFile; productRef = D29C75488E1E3958B969067A /* PeekixSession */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		0BB1A9C30D41D65336391580 /* PeekixApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PeekixApp.swift; sourceTree = "<group>"; };
+		2EB93E67AF260854FD18CEAF /* PowerStateObserver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PowerStateObserver.swift; sourceTree = "<group>"; };
 		353500FBC9FA3F8FBF8CB1C1 /* PreferencesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferencesView.swift; sourceTree = "<group>"; };
 		368D130385422A30535DC38F /* PlaybackViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackViewModel.swift; sourceTree = "<group>"; };
 		6F8CCF60912B0A842186CA95 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		7ECD5B0AB91521852E0408A0 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		86BE67B6D85FC0B4724DCFCE /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
-		A222222222222222222222A2 /* PowerStateObserver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PowerStateObserver.swift; sourceTree = "<group>"; };
 		9A1971843895CF99E35F202F /* MainWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainWindowController.swift; sourceTree = "<group>"; };
 		AF0270EBD32F63D0A1919025 /* PeekixUI */ = {isa = PBXFileReference; lastKnownFileType = folder; name = PeekixUI; path = ../Packages/PeekixUI; sourceTree = SOURCE_ROOT; };
 		B83612980616A6675229D1B9 /* PeekixStore */ = {isa = PBXFileReference; lastKnownFileType = folder; name = PeekixStore; path = ../Packages/PeekixStore; sourceTree = SOURCE_ROOT; };
 		DDB85BAD0D779A606D2AB3BA /* Peekix.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Peekix.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		E5B2AEB5C2EFC0DA3EA25472 /* PeekixCore */ = {isa = PBXFileReference; lastKnownFileType = folder; name = PeekixCore; path = ../Packages/PeekixCore; sourceTree = SOURCE_ROOT; };
 		E8BB47EDDF733197DB43CFEB /* PeekixSession */ = {isa = PBXFileReference; lastKnownFileType = folder; name = PeekixSession; path = ../Packages/PeekixSession; sourceTree = SOURCE_ROOT; };
+		F16F288B93FBAE04CB140338 /* UpdaterController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdaterController.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -46,6 +49,7 @@
 				FF7FE86B5AA834B5369DE6C8 /* PeekixSession in Frameworks */,
 				4E2B8EF69A55EC7BA1DB5AF9 /* PeekixUI in Frameworks */,
 				BC85A7CC28AD0F5C57497754 /* PeekixStore in Frameworks */,
+				E7A15B5F75F826DC943DE8C3 /* Sparkle in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -70,8 +74,9 @@
 				9A1971843895CF99E35F202F /* MainWindowController.swift */,
 				0BB1A9C30D41D65336391580 /* PeekixApp.swift */,
 				368D130385422A30535DC38F /* PlaybackViewModel.swift */,
-				A222222222222222222222A2 /* PowerStateObserver.swift */,
+				2EB93E67AF260854FD18CEAF /* PowerStateObserver.swift */,
 				353500FBC9FA3F8FBF8CB1C1 /* PreferencesView.swift */,
+				F16F288B93FBAE04CB140338 /* UpdaterController.swift */,
 			);
 			path = Peekix;
 			sourceTree = "<group>";
@@ -116,6 +121,7 @@
 				D29C75488E1E3958B969067A /* PeekixSession */,
 				75C879109304DEACC16AEC2A /* PeekixUI */,
 				03DA2A58690B3197086DBB5A /* PeekixStore */,
+				8FAF7BF62D87C352B2DB7D68 /* Sparkle */,
 			);
 			productName = Peekix;
 			productReference = DDB85BAD0D779A606D2AB3BA /* Peekix.app */;
@@ -145,6 +151,7 @@
 			mainGroup = 0B964C57FF9241CFFD1984CE;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
+				2F820EE916866199CB97CD45 /* XCRemoteSwiftPackageReference "Sparkle" */,
 				7AA9558CC410DEC8FC9C84BE /* XCLocalSwiftPackageReference "../Packages/PeekixCore" */,
 				3FD05A07131FD90E36B00F53 /* XCLocalSwiftPackageReference "../Packages/PeekixSession" */,
 				C960B02FDCE452FD198559F7 /* XCLocalSwiftPackageReference "../Packages/PeekixStore" */,
@@ -181,8 +188,9 @@
 				C4A6BC027C27C03153CAC852 /* MainWindowController.swift in Sources */,
 				2F780B2999279F5C803B95B8 /* PeekixApp.swift in Sources */,
 				DFFE5319F65EBFA8CB241E75 /* PlaybackViewModel.swift in Sources */,
-				A111111111111111111111A1 /* PowerStateObserver.swift in Sources */,
+				952227C128A2B13536E75D3A /* PowerStateObserver.swift in Sources */,
 				1D1D2E0DD9E9C92426D43293 /* PreferencesView.swift in Sources */,
+				A5ABD0A14F438B2BBFB98F27 /* UpdaterController.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -403,6 +411,17 @@
 		};
 /* End XCLocalSwiftPackageReference section */
 
+/* Begin XCRemoteSwiftPackageReference section */
+		2F820EE916866199CB97CD45 /* XCRemoteSwiftPackageReference "Sparkle" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/sparkle-project/Sparkle";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.6.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
 /* Begin XCSwiftPackageProductDependency section */
 		03DA2A58690B3197086DBB5A /* PeekixStore */ = {
 			isa = XCSwiftPackageProductDependency;
@@ -415,6 +434,11 @@
 		75C879109304DEACC16AEC2A /* PeekixUI */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = PeekixUI;
+		};
+		8FAF7BF62D87C352B2DB7D68 /* Sparkle */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 2F820EE916866199CB97CD45 /* XCRemoteSwiftPackageReference "Sparkle" */;
+			productName = Sparkle;
 		};
 		D29C75488E1E3958B969067A /* PeekixSession */ = {
 			isa = XCSwiftPackageProductDependency;

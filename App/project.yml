@@ -36,6 +36,9 @@ packages:
     path: ../Packages/PeekixUI
   PeekixStore:
     path: ../Packages/PeekixStore
+  Sparkle:
+    url: https://github.com/sparkle-project/Sparkle
+    from: "2.6.0"
 targets:
   Peekix:
     type: application
@@ -62,3 +65,5 @@ targets:
         product: PeekixUI
       - package: PeekixStore
         product: PeekixStore
+      - package: Sparkle
+        product: Sparkle

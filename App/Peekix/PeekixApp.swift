@@ -3,6 +3,7 @@ import SwiftUI
 @main
 struct PeekixApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
+    @StateObject private var updaterController = UpdaterController()
 
     var body: some Scene {
         WindowGroup("Peekix") {
@@ -12,6 +13,11 @@ struct PeekixApp: App {
         .windowStyle(.titleBar)
         .commands {
             CommandGroup(replacing: .newItem) {}
+            CommandGroup(after: .appInfo) {
+                Button("アップデートを確認…") {
+                    updaterController.checkForUpdates()
+                }
+            }
         }
 
         Settings {

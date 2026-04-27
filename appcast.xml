@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <channel>
+        <title>Peekix</title>
+        <link>https://raw.githubusercontent.com/kathoc/peekix-mac/main/appcast.xml</link>
+        <description>Peekix 自動アップデートフィード</description>
+        <language>ja</language>
+        <item>
+            <title>0.3.0</title>
+            <pubDate>Mon, 27 Apr 2026 10:50:00 +0900</pubDate>
+            <sparkle:version>3</sparkle:version>
+            <sparkle:shortVersionString>0.3.0</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+            <description><![CDATA[
+                <ul>
+                    <li>Sparkle 2 による自動アップデート機能を追加（メニュー「アップデートを確認…」、1日1回バックグラウンドチェック）</li>
+                    <li>EdDSA署名によるアップデート検証</li>
+                </ul>
+            ]]></description>
+            <enclosure
+                url="https://github.com/kathoc/peekix-mac/releases/download/v0.3.0/Peekix-0.3.0.zip"
+                sparkle:version="3"
+                sparkle:shortVersionString="0.3.0"
+                length="3142093"
+                type="application/octet-stream"
+                sparkle:edSignature="CYK8AgUq+stdTWBTFU57u56RfXKP6AFqQ9KJIzzQHGevBXIs10IkZcbjmWbYJugE0JDZEfX+TLkLB5u6bW40Dg==" />
+        </item>
+    </channel>
+</rss>

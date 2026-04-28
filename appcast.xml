@@ -6,6 +6,25 @@
         <description>Peekix 自動アップデートフィード</description>
         <language>ja</language>
         <item>
+            <title>0.4.1</title>
+            <pubDate>Tue, 28 Apr 2026 17:30:00 +0900</pubDate>
+            <sparkle:version>5</sparkle:version>
+            <sparkle:shortVersionString>0.4.1</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+            <description><![CDATA[
+                <ul>
+                    <li>自動アップデートのパッケージング不具合を修正（zip内のシンボリックリンクとリソースフォークを正しく扱うよう改善）。0.3.0→0.4.0 の更新が失敗していた問題を解消</li>
+                </ul>
+            ]]></description>
+            <enclosure
+                url="https://github.com/kathoc/peekix-mac/releases/download/v0.4.1/Peekix-0.4.1.zip"
+                sparkle:version="5"
+                sparkle:shortVersionString="0.4.1"
+                length="3113386"
+                type="application/octet-stream"
+                sparkle:edSignature="gD+gzkBptJnM6oVvBIa0KzM/u3yfwMqwumC1lRT34ndmZM7W1LA/eUz+vjgoaaBrJM/qHERTh0nt7VzSUHmxAw==" />
+        </item>
+        <item>
             <title>0.4.0</title>
             <pubDate>Tue, 28 Apr 2026 11:00:00 +0900</pubDate>
             <sparkle:version>4</sparkle:version>
@@ -23,9 +42,9 @@
                 url="https://github.com/kathoc/peekix-mac/releases/download/v0.4.0/Peekix-0.4.0.zip"
                 sparkle:version="4"
                 sparkle:shortVersionString="0.4.0"
-                length="3148761"
+                length="3111407"
                 type="application/octet-stream"
-                sparkle:edSignature="IKcuSGHrezyz6p/DWU3MqJ8hz1crca3TH8JOch2WM6YsliQBA9EYIglyrYZW2aWE7RI3eYzMvEXFBCqpdhJ/Bg==" />
+                sparkle:edSignature="pZ7+bYJAB+g4+ryb5taa8YMa9HFwE4WC7CQ5JdxJ/U5riaXhL0bWFlCQKalyaB5TYGtSM18YS9hXgvn1hqIICw==" />
         </item>
         <item>
             <title>0.3.0</title>

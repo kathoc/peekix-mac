@@ -8,29 +8,62 @@
 #   2. 出力された Public key (Base64) を App/Peekix/Info.plist の SUPublicEDKey に貼る
 #
 # Usage:
-#   Scripts/sparkle-release.sh path/to/Peekix-x.y.z.zip
+#   Scripts/sparkle-release.sh path/to/Peekix.app [output.zip]
 #
-# 出力:
-#   - Sparkle署名 (sparkle:edSignature, length) を標準出力
-#   - 既存の appcast.xml に手動で追記してください
+# 動作:
+#   - .app をクリーンステージにコピーし、xattr/.DS_Store/AppleDouble を除去
+#   - ditto でシンボリックリンクを保ったまま zip 化（リソースフォークも除外）
+#   - sign_update でEdDSA署名し、length と sparkle:edSignature を出力
+#
+# 出力は appcast.xml の <enclosure> に手動で反映してください。
 set -euo pipefail
 
-ZIP="${1:-}"
-if [[ -z "$ZIP" || ! -f "$ZIP" ]]; then
-  echo "usage: $0 path/to/Peekix-x.y.z.zip" >&2
+APP="${1:-}"
+OUT="${2:-}"
+
+if [[ -z "$APP" || ! -d "$APP" ]]; then
+  echo "usage: $0 path/to/Peekix.app [output.zip]" >&2
   exit 1
 fi
 
-DERIVED="$(xcodebuild -showBuildSettings -workspace App/Peekix.xcodeproj/project.xcworkspace -scheme Peekix 2>/dev/null | awk '/ BUILD_DIR / {print $3}')"
-SPARKLE_DIR="$(find "${DERIVED:-$HOME/Library/Developer/Xcode/DerivedData}" -type d -name 'Sparkle.framework' -path '*/SourcePackages/*' 2>/dev/null | head -1 || true)"
+VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP/Contents/Info.plist")"
+if [[ -z "$OUT" ]]; then
+  OUT="Peekix-${VERSION}.zip"
+fi
+
+STAGE_DIR="$(mktemp -d -t peekix-stage)"
+trap 'rm -rf "$STAGE_DIR"' EXIT
+
+echo "Staging $APP -> $STAGE_DIR"
+ditto "$APP" "$STAGE_DIR/Peekix.app"
+xattr -cr "$STAGE_DIR/Peekix.app"
+find "$STAGE_DIR/Peekix.app" \( -name '._*' -o -name '.DS_Store' \) -delete
+
+echo "Verifying code signature on staged bundle"
+codesign --verify --deep --strict "$STAGE_DIR/Peekix.app"
+
+echo "Packaging $OUT (preserving symlinks, no resource forks)"
+rm -f "$OUT"
+ditto -c -k --keepParent --norsrc --noextattr --noacl "$STAGE_DIR/Peekix.app" "$OUT"
+
+# Self-test: extracted bundle must keep symlinks and pass codesign.
+TEST_DIR="$(mktemp -d -t peekix-verify)"
+trap 'rm -rf "$STAGE_DIR" "$TEST_DIR"' EXIT
+unzip -q "$OUT" -d "$TEST_DIR"
+if [[ ! -L "$TEST_DIR/Peekix.app/Contents/Frameworks/Sparkle.framework/Versions/Current" ]]; then
+  echo "ERROR: Sparkle.framework symlinks were not preserved in $OUT" >&2
+  exit 1
+fi
+codesign --verify --deep --strict "$TEST_DIR/Peekix.app"
+
 SIGN_TOOL="$(xcrun --find sign_update 2>/dev/null || true)"
 if [[ -z "$SIGN_TOOL" ]]; then
   SIGN_TOOL="$(find "${HOME}/Library/Developer/Xcode/DerivedData" -type f -name sign_update 2>/dev/null | head -1)"
 fi
 if [[ -z "$SIGN_TOOL" || ! -x "$SIGN_TOOL" ]]; then
-  echo "sign_update が見つかりません。Sparkle配布物の bin/sign_update をPATHに置くか、SwiftPMで一度ビルドしてください。" >&2
+  echo "sign_update が見つかりません。Sparkle配布物の bin/sign_update をPATHに置くか、Xcodeで一度ビルドしてください。" >&2
   exit 1
 fi
 
-echo "Signing $ZIP with $SIGN_TOOL"
-"$SIGN_TOOL" "$ZIP"
+echo "Signing $OUT with $SIGN_TOOL"
+"$SIGN_TOOL" "$OUT"

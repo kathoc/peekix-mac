@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		00BD60F9486846C90DCB4DB7 /* PixelShiftController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7066DA8EC259383F9B73E9F8 /* PixelShiftController.swift */; };
 		1D1D2E0DD9E9C92426D43293 /* PreferencesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 353500FBC9FA3F8FBF8CB1C1 /* PreferencesView.swift */; };
 		2F780B2999279F5C803B95B8 /* PeekixApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0BB1A9C30D41D65336391580 /* PeekixApp.swift */; };
 		4E2B8EF69A55EC7BA1DB5AF9 /* PeekixUI in Frameworks */ = {isa = PBXBuildFile; productRef = 75C879109304DEACC16AEC2A /* PeekixUI */; };
@@ -29,6 +30,7 @@
 		353500FBC9FA3F8FBF8CB1C1 /* PreferencesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferencesView.swift; sourceTree = "<group>"; };
 		368D130385422A30535DC38F /* PlaybackViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackViewModel.swift; sourceTree = "<group>"; };
 		6F8CCF60912B0A842186CA95 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		7066DA8EC259383F9B73E9F8 /* PixelShiftController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PixelShiftController.swift; sourceTree = "<group>"; };
 		7ECD5B0AB91521852E0408A0 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		86BE67B6D85FC0B4724DCFCE /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		9A1971843895CF99E35F202F /* MainWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainWindowController.swift; sourceTree = "<group>"; };
@@ -73,6 +75,7 @@
 				7ECD5B0AB91521852E0408A0 /* ContentView.swift */,
 				9A1971843895CF99E35F202F /* MainWindowController.swift */,
 				0BB1A9C30D41D65336391580 /* PeekixApp.swift */,
+				7066DA8EC259383F9B73E9F8 /* PixelShiftController.swift */,
 				368D130385422A30535DC38F /* PlaybackViewModel.swift */,
 				2EB93E67AF260854FD18CEAF /* PowerStateObserver.swift */,
 				353500FBC9FA3F8FBF8CB1C1 /* PreferencesView.swift */,
@@ -187,6 +190,7 @@
 				EC225C10C2FECC78E75BC1E4 /* ContentView.swift in Sources */,
 				C4A6BC027C27C03153CAC852 /* MainWindowController.swift in Sources */,
 				2F780B2999279F5C803B95B8 /* PeekixApp.swift in Sources */,
+				00BD60F9486846C90DCB4DB7 /* PixelShiftController.swift in Sources */,
 				DFFE5319F65EBFA8CB241E75 /* PlaybackViewModel.swift in Sources */,
 				952227C128A2B13536E75D3A /* PowerStateObserver.swift in Sources */,
 				1D1D2E0DD9E9C92426D43293 /* PreferencesView.swift in Sources */,

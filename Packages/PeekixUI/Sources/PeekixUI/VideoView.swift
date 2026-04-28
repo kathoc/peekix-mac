@@ -10,6 +10,16 @@ public final class VideoView: NSView {
     public var onScroll: ((_ deltaY: CGFloat, _ cursor: NSPoint, _ size: NSSize) -> Void)?
     public var onDoubleClick: (() -> Void)?
 
+    // Sub-pixel offset applied to the hosted CAMetalLayer for MiniLED burn-in
+    // mitigation. The host CALayer masks to bounds, so any shifted-out edge is
+    // hidden under the host's black background.
+    public var pixelShift: CGPoint = .zero {
+        didSet {
+            guard pixelShift != oldValue else { return }
+            applyMetalLayerFrame()
+        }
+    }
+
     public override init(frame: NSRect) {
         super.init(frame: frame)
         setup()
@@ -89,14 +99,7 @@ public final class VideoView: NSView {
     private func updateDrawableSize() {
         let scale = window?.backingScaleFactor ?? _metalLayer.contentsScale
         let size = bounds.size
-        // Resize the hosted CAMetalLayer to fill the primary host layer.
-        // Disable implicit animations so the metal sublayer doesn't lag behind
-        // the window during fullscreen transitions (which would briefly leak
-        // the host layer's black background into the rendered area).
-        CATransaction.begin()
-        CATransaction.setDisableActions(true)
-        _metalLayer.frame = CGRect(origin: .zero, size: size)
-        CATransaction.commit()
+        applyMetalLayerFrame()
 
         let w = max(1, Int((size.width * scale).rounded()))
         let h = max(1, Int((size.height * scale).rounded()))
@@ -104,6 +107,17 @@ public final class VideoView: NSView {
         if _metalLayer.drawableSize != newSize {
             _metalLayer.drawableSize = newSize
         }
+    }
+
+    private func applyMetalLayerFrame() {
+        // Resize the hosted CAMetalLayer to fill the primary host layer.
+        // Disable implicit animations so the metal sublayer doesn't lag behind
+        // the window during fullscreen transitions (which would briefly leak
+        // the host layer's black background into the rendered area).
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        _metalLayer.frame = CGRect(origin: pixelShift, size: bounds.size)
+        CATransaction.commit()
     }
 
     public override var acceptsFirstResponder: Bool { true }

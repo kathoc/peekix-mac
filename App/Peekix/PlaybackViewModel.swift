@@ -43,6 +43,8 @@ final class PlaybackViewModel: NSObject, ObservableObject, PlaybackEngineDelegat
     private weak var attachedView: VideoView?
 
     private let powerObserver = PowerStateObserver()
+    private let pixelShiftController = PixelShiftController()
+    private var pixelShiftMouseIdleTask: Task<Void, Never>?
     // True when the user's intent is "playing" — set the moment a pause-reason
     // fires while we're playing/connecting, cleared when we successfully
     // restart on resume. Drives auto-resume across the pause/resume cycle.
@@ -147,6 +149,7 @@ final class PlaybackViewModel: NSObject, ObservableObject, PlaybackEngineDelegat
 
     func attach(videoView: VideoView) {
         attachedView = videoView
+        pixelShiftController.attach(videoView: videoView)
         if renderer == nil, let r = MetalRenderer() {
             r.attach(to: videoView.metalLayer)
             r.onVideoSizeChange = { [weak self] size in
@@ -483,6 +486,7 @@ final class PlaybackViewModel: NSObject, ObservableObject, PlaybackEngineDelegat
         lastTransitionEndedAt = CFAbsoluteTimeGetCurrent()
         renderer?.isSuspended = false
         windowMode = .fullscreen
+        pixelShiftController.setEnabled(true)
         if let c = enterFSContinuation { enterFSContinuation = nil; c.resume() }
     }
 
@@ -492,6 +496,7 @@ final class PlaybackViewModel: NSObject, ObservableObject, PlaybackEngineDelegat
         savedFullscreenFrame = nil
         renderer?.isSuspended = false
         windowMode = .normal
+        pixelShiftController.setEnabled(false)
         applyWindowAspect()
     }
 
@@ -505,10 +510,23 @@ final class PlaybackViewModel: NSObject, ObservableObject, PlaybackEngineDelegat
         lastTransitionEndedAt = CFAbsoluteTimeGetCurrent()
         savedFullscreenFrame = nil
         windowMode = .normal
+        pixelShiftController.setEnabled(false)
         applyAlwaysOnTop()
         applyWindowAspect()
         renderer?.isSuspended = false
         if let c = exitFSContinuation { exitFSContinuation = nil; c.resume() }
+    }
+
+    // ContentView reports pointer activity here; the controller pauses
+    // advancement (but keeps current offset) until the cursor settles again.
+    func notePixelShiftMouseActivity() {
+        pixelShiftController.setPaused(true)
+        pixelShiftMouseIdleTask?.cancel()
+        pixelShiftMouseIdleTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 5_000_000_000)
+            guard !Task.isCancelled else { return }
+            self?.pixelShiftController.setPaused(false)
+        }
     }
 
     func windowDidFailToExitFullScreen(_ window: NSWindow) {

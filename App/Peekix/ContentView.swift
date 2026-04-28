@@ -79,6 +79,7 @@ struct ContentView: View {
     private func noteMouseActivity() {
         mouseActiveAt = Date()
         autoHideTick &+= 1
+        viewModel.notePixelShiftMouseActivity()
         hideTask?.cancel()
         let interval = Self.controlBarAutoHideInterval
         hideTask = Task { @MainActor in

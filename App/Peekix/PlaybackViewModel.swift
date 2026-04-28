@@ -27,10 +27,22 @@ final class PlaybackViewModel: NSObject, ObservableObject, PlaybackEngineDelegat
     @Published var videoAspect: CGFloat? = nil {
         didSet { applyWindowAspect() }
     }
-    @Published var isMuted: Bool = false
-    @Published var isAlwaysOnTop: Bool = false
+    @Published var isMuted: Bool = false {
+        didSet {
+            guard !isRestoringPersistedState, oldValue != isMuted else { return }
+            UserDefaults.standard.set(isMuted, forKey: Self.mutedKey)
+        }
+    }
+    @Published var isAlwaysOnTop: Bool = false {
+        didSet {
+            guard !isRestoringPersistedState, oldValue != isAlwaysOnTop else { return }
+            UserDefaults.standard.set(isAlwaysOnTop, forKey: Self.alwaysOnTopKey)
+        }
+    }
     @Published var windowMode: WindowMode = .normal
     @Published var isMouseHovering: Bool = false
+
+    private var isRestoringPersistedState = false
 
     @Published var lastScreenshotMessage: String?
 
@@ -76,6 +88,9 @@ final class PlaybackViewModel: NSObject, ObservableObject, PlaybackEngineDelegat
     private static let urlKey = "lastURL"
     private static let defaultURL = "rtsp://user:pass@host/stream"
 
+    private static let mutedKey = "isMuted"
+    private static let alwaysOnTopKey = "isAlwaysOnTop"
+
     private var resolvedURL: URL? {
         let s = UserDefaults.standard.string(forKey: Self.urlKey).flatMap { $0.isEmpty ? nil : $0 }
             ?? ProcessInfo.processInfo.environment["PEEKIX_RTSP_URL"]
@@ -91,6 +106,20 @@ final class PlaybackViewModel: NSObject, ObservableObject, PlaybackEngineDelegat
         }
         powerObserver.onResume = { [weak self] _ in
             self?.handlePowerResume()
+        }
+        restorePersistedState()
+    }
+
+    private func restorePersistedState() {
+        isRestoringPersistedState = true
+        defer { isRestoringPersistedState = false }
+        let defaults = UserDefaults.standard
+        if defaults.object(forKey: Self.mutedKey) != nil {
+            isMuted = defaults.bool(forKey: Self.mutedKey)
+            if isMuted { engine.mute() }
+        }
+        if defaults.object(forKey: Self.alwaysOnTopKey) != nil {
+            isAlwaysOnTop = defaults.bool(forKey: Self.alwaysOnTopKey)
         }
     }
 

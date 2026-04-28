@@ -6,6 +6,26 @@
         <description>Peekix 自動アップデートフィード</description>
         <language>ja</language>
         <item>
+            <title>0.4.2</title>
+            <pubDate>Tue, 28 Apr 2026 21:00:00 +0900</pubDate>
+            <sparkle:version>6</sparkle:version>
+            <sparkle:shortVersionString>0.4.2</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+            <description><![CDATA[
+                <ul>
+                    <li>ミュート状態と「常に最前面」設定を再起動後も保持するように変更</li>
+                    <li>不要なメニュー項目（フォーマット、ツールバー、サイドバー、ヘルプ等）を非表示にしてメニュー構成を整理</li>
+                </ul>
+            ]]></description>
+            <enclosure
+                url="https://github.com/kathoc/peekix-mac/releases/download/v0.4.2/Peekix-0.4.2.zip"
+                sparkle:version="6"
+                sparkle:shortVersionString="0.4.2"
+                length="3114708"
+                type="application/octet-stream"
+                sparkle:edSignature="31WjHG6nZBsm9OCdyD7gCq/gmRvoF9g0be6lJNSiVqzeIzqAzrvDxyGGUpKKSL4z1Wc8jYdo2GYY8duNNJeVBA==" />
+        </item>
+        <item>
             <title>0.4.1</title>
             <pubDate>Tue, 28 Apr 2026 17:30:00 +0900</pubDate>
             <sparkle:version>5</sparkle:version>

@@ -6,6 +6,28 @@
         <description>Peekix 自動アップデートフィード</description>
         <language>ja</language>
         <item>
+            <title>0.4.0</title>
+            <pubDate>Tue, 28 Apr 2026 11:00:00 +0900</pubDate>
+            <sparkle:version>4</sparkle:version>
+            <sparkle:shortVersionString>0.4.0</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+            <description><![CDATA[
+                <ul>
+                    <li>コントロールバーをウィンドウ下部のオーバーレイに変更（マウスホバーでフェードイン／離れるとフェードアウト）</li>
+                    <li>接続状態インジケーターをバーの表示状態に関わらず常時表示</li>
+                    <li>動画下のレターボックス領域を廃止し、フルスクリーンを含めて常に映像を最大化</li>
+                    <li>ダウンスケール時のジャギーを軽減するMetalレンダラの改善（ミップマップ＋異方性フィルタリング）</li>
+                </ul>
+            ]]></description>
+            <enclosure
+                url="https://github.com/kathoc/peekix-mac/releases/download/v0.4.0/Peekix-0.4.0.zip"
+                sparkle:version="4"
+                sparkle:shortVersionString="0.4.0"
+                length="3148761"
+                type="application/octet-stream"
+                sparkle:edSignature="IKcuSGHrezyz6p/DWU3MqJ8hz1crca3TH8JOch2WM6YsliQBA9EYIglyrYZW2aWE7RI3eYzMvEXFBCqpdhJ/Bg==" />
+        </item>
+        <item>
             <title>0.3.0</title>
             <pubDate>Mon, 27 Apr 2026 10:50:00 +0900</pubDate>
             <sparkle:version>3</sparkle:version>

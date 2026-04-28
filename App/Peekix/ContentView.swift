@@ -6,13 +6,13 @@ struct ContentView: View {
     @StateObject private var viewModel = PlaybackViewModel()
 
     var body: some View {
-        GeometryReader { geo in
-            let visible = controlBarVisible(in: geo.size)
-            VStack(spacing: 0) {
-                ZStack(alignment: .top) {
-                    VideoViewRepresentable(viewModel: viewModel)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    if let msg = viewModel.lastScreenshotMessage {
+        GeometryReader { _ in
+            let visible = controlBarVisible
+            ZStack(alignment: .bottom) {
+                VideoViewRepresentable(viewModel: viewModel)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                if let msg = viewModel.lastScreenshotMessage {
+                    VStack {
                         Text(msg)
                             .font(.callout)
                             .padding(.horizontal, 12)
@@ -21,48 +21,54 @@ struct ContentView: View {
                             .foregroundColor(.white)
                             .cornerRadius(6)
                             .padding(.top, 12)
-                            .transition(.opacity)
+                        Spacer(minLength: 0)
                     }
+                    .transition(.opacity)
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                // Control bar is always present in the view tree to keep
-                // NSHostingView's subview hierarchy stable across fullscreen
-                // transitions. Mutating the tree (via `if`) between enter and
-                // exit destabilizes AppKit's region bookkeeping and crashes
-                // _adjustNeedsDisplayRegionForNewFrame on exit. We collapse it
-                // to zero height + hidden when not visible.
+                // Control bar overlays the video; faded out when not hovered.
+                // Kept in the view tree (not removed) so NSHostingView's
+                // subview hierarchy stays stable across fullscreen transitions.
                 controlBar
-                    .frame(height: visible ? PlaybackViewModel.controlBarHeight : 0)
                     .opacity(visible ? 1 : 0)
                     .allowsHitTesting(visible)
-                    .clipped()
+                    .animation(.easeInOut(duration: 0.15), value: visible)
+                if viewModel.windowMode != .mini {
+                    persistentStatusDot
+                        .allowsHitTesting(false)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+                        // Match the dot's in-bar position exactly so it doesn't
+                        // shift when the bar fades in/out:
+                        //   trailing = outerHorizontalPadding(12) + innerHorizontalPadding(12) = 24
+                        //   bottom   = outerBottomPadding(12) + (barInnerHeight - dot)/2
+                        //            = 12 + (30 - 8)/2 = 23
+                        // (barInnerHeight = innerVerticalPadding(6)*2 + iconHeight(18) = 30)
+                        .padding(.trailing, 24)
+                        .padding(.bottom, 23)
+                }
             }
             .background(Color.black.ignoresSafeArea())
             .background(WindowAccessor { window in
                 viewModel.setWindow(window)
             })
             .background(keyboardShortcuts)
+            .onHover { hovering in
+                viewModel.isMouseHovering = hovering
+            }
             .onAppear { viewModel.startIfNeeded() }
         }
     }
 
 
-    private func controlBarVisible(in size: CGSize) -> Bool {
-        switch viewModel.windowMode {
-        case .mini:
-            return false
-        case .normal:
-            return true
-        case .fullscreen:
-            // Show the control bar in the bottom letterbox area when the
-            // screen is taller than the video's natural aspect (e.g. a 16:9
-            // video on a 16:10 display) and there is at least controlBarHeight
-            // of vertical slack below the video.
-            guard let a = viewModel.videoAspect, a > 0,
-                  size.width > 0, size.height > 0 else { return false }
-            let videoH = size.width / a
-            return size.height - videoH >= PlaybackViewModel.controlBarHeight
-        }
+    private var controlBarVisible: Bool {
+        guard viewModel.windowMode != .mini else { return false }
+        return viewModel.isMouseHovering
+    }
+
+    private var persistentStatusDot: some View {
+        Circle()
+            .fill(statusColor)
+            .frame(width: 8, height: 8)
+            .shadow(color: .black.opacity(0.6), radius: 1.5, x: 0, y: 0)
     }
 
     private var controlBar: some View {
@@ -104,25 +110,21 @@ struct ContentView: View {
 
             Spacer()
 
-            statusIndicator
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 6)
-        .background(Color(NSColor.windowBackgroundColor))
-    }
-
-    private var statusIndicator: some View {
-        HStack(spacing: 6) {
-            Circle()
-                .fill(statusColor)
-                .frame(width: 8, height: 8)
             if let err = viewModel.errorMessage {
                 Text(err)
                     .foregroundColor(.red)
                     .lineLimit(1)
                     .font(.caption)
+                    // Reserve space for the persistent status dot at the right edge.
+                    .padding(.trailing, 14)
             }
         }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+        .background(.ultraThinMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .padding(.horizontal, 12)
+        .padding(.bottom, 12)
     }
 
     private var statusColor: Color {

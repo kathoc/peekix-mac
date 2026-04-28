@@ -30,6 +30,7 @@ final class PlaybackViewModel: NSObject, ObservableObject, PlaybackEngineDelegat
     @Published var isMuted: Bool = false
     @Published var isAlwaysOnTop: Bool = false
     @Published var windowMode: WindowMode = .normal
+    @Published var isMouseHovering: Bool = false
 
     @Published var lastScreenshotMessage: String?
 
@@ -267,14 +268,12 @@ final class PlaybackViewModel: NSObject, ObservableObject, PlaybackEngineDelegat
         // with the animation and have crashed historically.
         if windowMode == .fullscreen || isTransitioning { return }
         if w.styleMask.contains(.fullScreen) { return }
-        let controlBarH: CGFloat = windowMode == .mini ? 0 : Self.controlBarHeight
         var f = w.frame
         let chrome = f.size.height - w.contentLayoutRect.size.height
         guard chrome >= 0 else { return }
         let contentW = max(1, f.size.width)
         let videoH = (contentW / a).rounded()
-        let newContentH = videoH + controlBarH
-        let newFrameH = newContentH + chrome
+        let newFrameH = videoH + chrome
         guard newFrameH > 0 else { return }
         f.origin.y += f.size.height - newFrameH
         f.size.height = newFrameH
@@ -301,8 +300,7 @@ final class PlaybackViewModel: NSObject, ObservableObject, PlaybackEngineDelegat
         guard chrome >= 0 else { return frameSize }
         let contentW = max(1, frameSize.width)
         let videoH = (contentW / a).rounded()
-        let controlBarH: CGFloat = windowMode == .mini ? 0 : Self.controlBarHeight
-        let newFrameH = videoH + controlBarH + chrome
+        let newFrameH = videoH + chrome
         guard newFrameH > 0 else { return frameSize }
         return NSSize(width: contentW, height: newFrameH)
     }

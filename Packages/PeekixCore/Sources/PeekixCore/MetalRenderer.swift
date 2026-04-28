@@ -27,6 +27,12 @@ public final class MetalRenderer: @unchecked Sendable {
     public var onVideoSizeChange: ((CGSize) -> Void)?
     private var lastVideoSize: CGSize = .zero
 
+    // Mipmapped private textures used as the actual sampling source. CV-derived
+    // textures aren't mipmapped, so without this we get bilinear-only minification
+    // and noticeable aliasing when the window is shrunk well below the source size.
+    private var yMipTexture: MTLTexture?
+    private var cbcrMipTexture: MTLTexture?
+
     public init?() {
         guard let device = MTLCreateSystemDefaultDevice() else {
             os_log(.error, "MTLCreateSystemDefaultDevice returned nil")
@@ -114,6 +120,9 @@ public final class MetalRenderer: @unchecked Sendable {
             return
         }
 
+        ensureMipTextures(width: width, height: height)
+        guard let yMip = yMipTexture, let cbcrMip = cbcrMipTexture else { return }
+
         guard let drawable = layer.nextDrawable() else { return }
 
         // Window is constrained to the video aspect ratio, so the Metal layer
@@ -132,15 +141,36 @@ public final class MetalRenderer: @unchecked Sendable {
         passDesc.colorAttachments[0].storeAction = .store
         passDesc.colorAttachments[0].clearColor = MTLClearColor(red: 0, green: 0, blue: 0, alpha: 1)
 
-        guard let cmdBuf = commandQueue.makeCommandBuffer(),
-              let encoder = cmdBuf.makeRenderCommandEncoder(descriptor: passDesc) else {
+        guard let cmdBuf = commandQueue.makeCommandBuffer() else { return }
+
+        if let blit = cmdBuf.makeBlitCommandEncoder() {
+            blit.copy(from: yTexture,
+                      sourceSlice: 0, sourceLevel: 0,
+                      sourceOrigin: MTLOrigin(x: 0, y: 0, z: 0),
+                      sourceSize: MTLSize(width: width, height: height, depth: 1),
+                      to: yMip,
+                      destinationSlice: 0, destinationLevel: 0,
+                      destinationOrigin: MTLOrigin(x: 0, y: 0, z: 0))
+            blit.copy(from: cbcrTexture,
+                      sourceSlice: 0, sourceLevel: 0,
+                      sourceOrigin: MTLOrigin(x: 0, y: 0, z: 0),
+                      sourceSize: MTLSize(width: width / 2, height: height / 2, depth: 1),
+                      to: cbcrMip,
+                      destinationSlice: 0, destinationLevel: 0,
+                      destinationOrigin: MTLOrigin(x: 0, y: 0, z: 0))
+            if yMip.mipmapLevelCount > 1 { blit.generateMipmaps(for: yMip) }
+            if cbcrMip.mipmapLevelCount > 1 { blit.generateMipmaps(for: cbcrMip) }
+            blit.endEncoding()
+        }
+
+        guard let encoder = cmdBuf.makeRenderCommandEncoder(descriptor: passDesc) else {
             return
         }
 
         encoder.setRenderPipelineState(pipelineState)
         encoder.setVertexBytes(&uniforms, length: MemoryLayout<VertexUniforms>.size, index: 0)
-        encoder.setFragmentTexture(yTexture, index: 0)
-        encoder.setFragmentTexture(cbcrTexture, index: 1)
+        encoder.setFragmentTexture(yMip, index: 0)
+        encoder.setFragmentTexture(cbcrMip, index: 1)
         encoder.drawPrimitives(type: .triangleStrip, vertexStart: 0, vertexCount: 4)
         encoder.endEncoding()
 
@@ -148,6 +178,30 @@ public final class MetalRenderer: @unchecked Sendable {
         cmdBuf.commit()
 
         CVMetalTextureCacheFlush(cache, 0)
+    }
+
+    private func ensureMipTextures(width: Int, height: Int) {
+        if let y = yMipTexture, y.width == width, y.height == height,
+           let c = cbcrMipTexture, c.width == width / 2, c.height == height / 2 {
+            return
+        }
+        let yLevels = max(1, Int(floor(log2(Double(max(width, height))))) + 1)
+        let cLevels = max(1, Int(floor(log2(Double(max(width / 2, height / 2))))) + 1)
+
+        let yDesc = MTLTextureDescriptor.texture2DDescriptor(
+            pixelFormat: .r8Unorm, width: width, height: height, mipmapped: yLevels > 1)
+        yDesc.mipmapLevelCount = yLevels
+        yDesc.usage = [.shaderRead, .renderTarget]
+        yDesc.storageMode = .private
+
+        let cDesc = MTLTextureDescriptor.texture2DDescriptor(
+            pixelFormat: .rg8Unorm, width: width / 2, height: height / 2, mipmapped: cLevels > 1)
+        cDesc.mipmapLevelCount = cLevels
+        cDesc.usage = [.shaderRead, .renderTarget]
+        cDesc.storageMode = .private
+
+        yMipTexture = device.makeTexture(descriptor: yDesc)
+        cbcrMipTexture = device.makeTexture(descriptor: cDesc)
     }
 
     fileprivate static let shaderSource: String = """
@@ -192,7 +246,10 @@ public final class MetalRenderer: @unchecked Sendable {
     fragment float4 fragmentShader(VertexOut in [[stage_in]],
                                    texture2d<float, access::sample> yTex [[texture(0)]],
                                    texture2d<float, access::sample> cbcrTex [[texture(1)]]) {
-        constexpr sampler s(address::clamp_to_edge, filter::linear);
+        constexpr sampler s(address::clamp_to_edge,
+                            filter::linear,
+                            mip_filter::linear,
+                            max_anisotropy(4));
         float  y  = yTex.sample(s, in.texCoord).r - (16.0 / 255.0);
         float2 cc = cbcrTex.sample(s, in.texCoord).rg - float2(0.5, 0.5);
         float cb = cc.x;

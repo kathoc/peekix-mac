@@ -125,10 +125,24 @@ public final class MetalRenderer: @unchecked Sendable {
 
         guard let drawable = layer.nextDrawable() else { return }
 
-        // Window is constrained to the video aspect ratio, so the Metal layer
-        // always renders to its full extent — no letterboxing in the shader.
+        // The window is normally constrained to the video aspect ratio, but in
+        // native fullscreen on a non-16:9 display the drawable matches the
+        // screen and no longer matches the video. Compute a letterbox scale
+        // here so the video keeps its source aspect in any drawable shape.
+        var letterbox = SIMD2<Float>(1, 1)
+        let drawableW = Float(layer.drawableSize.width)
+        let drawableH = Float(layer.drawableSize.height)
+        if drawableW > 0, drawableH > 0 {
+            let videoAspect = Float(width) / Float(height)
+            let drawableAspect = drawableW / drawableH
+            if drawableAspect > videoAspect {
+                letterbox.x = videoAspect / drawableAspect
+            } else if drawableAspect < videoAspect {
+                letterbox.y = drawableAspect / videoAspect
+            }
+        }
         var uniforms = VertexUniforms(
-            letterboxScale: SIMD2<Float>(1, 1),
+            letterboxScale: letterbox,
             zoom: max(zoomScale, 0.0001),
             pad0: 0,
             zoomOffset: zoomOffset,

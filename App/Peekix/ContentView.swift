@@ -4,6 +4,11 @@ import SwiftUI
 
 struct ContentView: View {
     @StateObject private var viewModel = PlaybackViewModel()
+    @State private var mouseActiveAt: Date = .distantPast
+    @State private var hideTask: Task<Void, Never>?
+    @State private var autoHideTick: Int = 0
+
+    private static let controlBarAutoHideInterval: TimeInterval = 5
 
     var body: some View {
         GeometryReader { _ in
@@ -53,15 +58,48 @@ struct ContentView: View {
             .background(keyboardShortcuts)
             .onHover { hovering in
                 viewModel.isMouseHovering = hovering
+                if hovering {
+                    noteMouseActivity()
+                } else {
+                    cancelAutoHide()
+                }
+            }
+            .onContinuousHover { phase in
+                switch phase {
+                case .active:
+                    noteMouseActivity()
+                case .ended:
+                    cancelAutoHide()
+                }
             }
             .onAppear { viewModel.startIfNeeded() }
         }
     }
 
+    private func noteMouseActivity() {
+        mouseActiveAt = Date()
+        autoHideTick &+= 1
+        hideTask?.cancel()
+        let interval = Self.controlBarAutoHideInterval
+        hideTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: UInt64(interval * 1_000_000_000))
+            guard !Task.isCancelled else { return }
+            autoHideTick &+= 1
+        }
+    }
+
+    private func cancelAutoHide() {
+        hideTask?.cancel()
+        hideTask = nil
+        mouseActiveAt = .distantPast
+        autoHideTick &+= 1
+    }
 
     private var controlBarVisible: Bool {
         guard viewModel.windowMode != .mini else { return false }
-        return viewModel.isMouseHovering
+        guard viewModel.isMouseHovering else { return false }
+        _ = autoHideTick
+        return Date().timeIntervalSince(mouseActiveAt) < Self.controlBarAutoHideInterval
     }
 
     private var persistentStatusDot: some View {

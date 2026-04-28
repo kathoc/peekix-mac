@@ -21,3 +21,13 @@ Package.resolved
 
 # Logs / artifacts
 *.log
+
+# Finder/iCloud duplicates (e.g. "Peekix 2.xcodeproj")
+* 2.xcodeproj/
+* 2.xcodeproj
+*\ 2.app
+*\ 2.swift
+
+# Release artifacts
+Peekix.app.zip
+*.app.zip

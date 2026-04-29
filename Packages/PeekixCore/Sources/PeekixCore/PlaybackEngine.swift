@@ -99,6 +99,7 @@ public final class PlaybackEngine: @unchecked Sendable {
 
     private var decodedFrameCount: UInt64 = 0
     private var firstFrameLogged = false
+    private var firstFrameEmitted = false
 
     private static let networkInit: Void = {
         let r = avformat_network_init()
@@ -201,6 +202,10 @@ public final class PlaybackEngine: @unchecked Sendable {
 
     fileprivate func handleDecodedFrame(_ buffer: CVImageBuffer, pts: CMTime) {
         decodedFrameCount &+= 1
+        if !firstFrameEmitted {
+            firstFrameEmitted = true
+            emitStatus(.playing)
+        }
         if !firstFrameLogged {
             firstFrameLogged = true
             let pf = CVPixelBufferGetPixelFormatType(buffer)
@@ -223,19 +228,48 @@ public final class PlaybackEngine: @unchecked Sendable {
     // MARK: - Demux loop
 
     private func runDemux(urlString: String, transport: RTSPTransport) {
-        var formatCtx: UnsafeMutablePointer<AVFormatContext>? = nil
+        // Per-iteration reset so each reconnect re-arms the "first frame"
+        // logic and re-emits `.playing` on the first decoded frame.
+        decodedFrameCount = 0
+        firstFrameLogged = false
+        firstFrameEmitted = false
+
+        // Pre-allocate so we can attach the interrupt callback before open.
+        // The callback lets us abort av_read_frame / avformat_open_input from
+        // outside (cancel) and on stream silence (watchdog), instead of
+        // depending on stimeout/timeout which is unreliable across ffmpeg
+        // versions and ignored by some IO paths.
+        var formatCtx: UnsafeMutablePointer<AVFormatContext>? = avformat_alloc_context()
+        guard formatCtx != nil else {
+            emitError(PlaybackEngineError.openFailed(-1))
+            return
+        }
+        let watchdog = DemuxWatchdog(
+            isCancelled: { [weak self] in self?.isCancelled ?? true },
+            openTimeout: 8.0,
+            readTimeout: 8.0
+        )
+        let watchdogOpaque = Unmanaged.passUnretained(watchdog).toOpaque()
+        formatCtx!.pointee.interrupt_callback.callback = PlaybackEngine_interruptCallback
+        formatCtx!.pointee.interrupt_callback.opaque = watchdogOpaque
+
         var options: OpaquePointer? = nil // AVDictionary*
         if transport != .auto {
             av_dict_set(&options, "rtsp_transport", transport.rawValue, 0)
         }
         av_dict_set(&options, "max_analyze_duration", "2000000", 0)
         av_dict_set(&options, "probesize", "32768", 0)
+        // stimeout is the historic ffmpeg option name; current ffmpeg uses
+        // "timeout" for RTSP. Set both so the kernel-level read deadline is
+        // honored regardless of which name the linked build accepts.
         av_dict_set(&options, "stimeout", "5000000", 0)
+        av_dict_set(&options, "timeout", "5000000", 0)
 
         let scheme = URL(string: urlString)?.scheme ?? "?"
         let host = URL(string: urlString)?.host ?? "?"
         let port = URL(string: urlString)?.port.map(String.init) ?? "default"
         logger.info("avformat_open_input: transport=\(transport.rawValue, privacy: .public) scheme=\(scheme, privacy: .public) host=\(host, privacy: .public) port=\(port, privacy: .public)")
+        watchdog.markProgress()
         let openRet = avformat_open_input(&formatCtx, urlString, nil, &options)
         if options != nil {
             av_dict_free(&options)
@@ -252,6 +286,7 @@ public final class PlaybackEngine: @unchecked Sendable {
             }
         }
 
+        watchdog.markProgress()
         let infoRet = avformat_find_stream_info(formatCtx, nil)
         if infoRet < 0 {
             emitError(PlaybackEngineError.streamInfoFailed(infoRet))
@@ -382,7 +417,13 @@ public final class PlaybackEngine: @unchecked Sendable {
             audioOutput.teardownSync()
         }
 
-        emitStatus(.playing)
+        // NOTE: do not emit .playing here. We were marking the session
+        // "playing" the moment the demux loop entered, even when no RTP
+        // packets ever arrived — so a half-open Eufy session left the UI
+        // green forever. Now `.playing` is emitted from handleDecodedFrame
+        // on the first frame actually decoded, and re-emitted on reconnect.
+        watchdog.markOpened()
+        watchdog.markProgress()
         logger.info("VTDecompressionSession created; entering demux loop")
 
         guard let packet = av_packet_alloc() else {
@@ -406,9 +447,18 @@ public final class PlaybackEngine: @unchecked Sendable {
                     av_packet_unref(packet)
                     continue
                 }
-                emitError(PlaybackEngineError.readFailed(r))
+                // The watchdog/cancel path returns AVERROR_EXIT (interrupt
+                // callback) — that's an expected reconnect trigger, not a
+                // user-visible error. Surface other failures only.
+                if !isCancelled {
+                    logger.notice("av_read_frame -> \(r, privacy: .public); reconnecting")
+                }
+                if !watchdog.isInterrupt(r) {
+                    emitError(PlaybackEngineError.readFailed(r))
+                }
                 break
             }
+            watchdog.markProgress()
             if audioStreamIndex >= 0,
                packet.pointee.stream_index == audioStreamIndex,
                let actx = audioCodecCtx,
@@ -723,4 +773,57 @@ private let PlaybackEngine_decompressionOutputCallback: VTDecompressionOutputCal
     guard status == noErr, let imageBuffer, let refCon else { return }
     let engine = Unmanaged<PlaybackEngine>.fromOpaque(refCon).takeUnretainedValue()
     engine.handleDecodedFrame(imageBuffer, pts: pts)
+}
+
+// Drives the AVIOInterruptCB. Returns 1 to abort blocking I/O when the user
+// cancelled or when the upstream has gone silent past the watchdog deadline
+// (e.g. Eufy half-open RTSP session — TCP keepalive would otherwise take
+// many minutes to detect this). Heap-allocated so the opaque pointer stays
+// valid for the duration of the demux iteration.
+final class DemuxWatchdog {
+    private let lock = NSLock()
+    private let isCancelledFn: () -> Bool
+    private let openTimeout: TimeInterval
+    private let readTimeout: TimeInterval
+    private var lastProgress: CFAbsoluteTime
+    private var opened: Bool = false
+
+    init(isCancelled: @escaping () -> Bool, openTimeout: TimeInterval, readTimeout: TimeInterval) {
+        self.isCancelledFn = isCancelled
+        self.openTimeout = openTimeout
+        self.readTimeout = readTimeout
+        self.lastProgress = CFAbsoluteTimeGetCurrent()
+    }
+
+    func markProgress() {
+        lock.lock(); lastProgress = CFAbsoluteTimeGetCurrent(); lock.unlock()
+    }
+
+    func markOpened() {
+        lock.lock(); opened = true; lock.unlock()
+    }
+
+    fileprivate func shouldAbort() -> Bool {
+        if isCancelledFn() { return true }
+        lock.lock()
+        let elapsed = CFAbsoluteTimeGetCurrent() - lastProgress
+        let limit = opened ? readTimeout : openTimeout
+        lock.unlock()
+        return elapsed > limit
+    }
+
+    func isInterrupt(_ ret: Int32) -> Bool {
+        // AVERROR_EXIT == FFERRTAG('E','X','I','T') == -('E'|'X'<<8|'I'<<16|'T'<<24)
+        let exit = -(Int32(UInt8(ascii: "E")) |
+                     (Int32(UInt8(ascii: "X")) << 8) |
+                     (Int32(UInt8(ascii: "I")) << 16) |
+                     (Int32(UInt8(ascii: "T")) << 24))
+        return ret == exit
+    }
+}
+
+private let PlaybackEngine_interruptCallback: @convention(c) (UnsafeMutableRawPointer?) -> Int32 = { opaque in
+    guard let opaque else { return 0 }
+    let w = Unmanaged<DemuxWatchdog>.fromOpaque(opaque).takeUnretainedValue()
+    return w.shouldAbort() ? 1 : 0
 }

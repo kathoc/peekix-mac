@@ -6,6 +6,27 @@
         <description>Peekix 自動アップデートフィード</description>
         <language>ja</language>
         <item>
+            <title>0.4.3</title>
+            <pubDate>Thu, 30 Apr 2026 08:30:00 +0900</pubDate>
+            <sparkle:version>7</sparkle:version>
+            <sparkle:shortVersionString>0.4.3</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+            <description><![CDATA[
+                <ul>
+                    <li>映像が止まっても「再生中」のまま固まる問題を修正。初フレーム到達で初めて再生中表示に切り替えるよう変更</li>
+                    <li>I/Oブロック中でも停止と再接続を即時反映するため AVIOInterruptCB ベースの割り込みを実装</li>
+                    <li>8秒無音で自動再接続するウォッチドッグを追加。Eufy S350 のハーフオープン RTSP セッションによるフリーズを自己復旧</li>
+                </ul>
+            ]]></description>
+            <enclosure
+                url="https://github.com/kathoc/peekix-mac/releases/download/v0.4.3/Peekix-0.4.3.zip"
+                sparkle:version="7"
+                sparkle:shortVersionString="0.4.3"
+                length="3115671"
+                type="application/octet-stream"
+                sparkle:edSignature="baZ/rZi/wtrFHVukW3EuDchdJ3BpiKoyXIydvjnMDf7N3U2pXZKpCSMR/9FTznnbJSph2Ygk8/G2btY7AauXAw==" />
+        </item>
+        <item>
             <title>0.4.2</title>
             <pubDate>Tue, 28 Apr 2026 21:00:00 +0900</pubDate>
             <sparkle:version>6</sparkle:version>

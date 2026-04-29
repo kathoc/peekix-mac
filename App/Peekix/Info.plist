@@ -4,6 +4,8 @@
 <dict>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
+	<key>CFBundleDisplayName</key>
+	<string>Peekix</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -12,35 +14,33 @@
 	<string>6.0</string>
 	<key>CFBundleName</key>
 	<string>Peekix</string>
-	<key>CFBundleDisplayName</key>
-	<string>Peekix</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>0.4.2</string>
+	<string>0.4.3</string>
 	<key>CFBundleVersion</key>
-	<string>6</string>
-	<key>LSMinimumSystemVersion</key>
-	<string>13.0</string>
+	<string>7</string>
 	<key>LSApplicationCategoryType</key>
 	<string>public.app-category.video</string>
-	<key>NSPrincipalClass</key>
-	<string>NSApplication</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>13.0</string>
 	<key>NSHighResolutionCapable</key>
 	<true/>
 	<key>NSHumanReadableCopyright</key>
 	<string>Copyright © 2026 Peekix. All rights reserved.</string>
+	<key>NSPrincipalClass</key>
+	<string>NSApplication</string>
+	<key>SUAutomaticallyDownloadsUpdates</key>
+	<false/>
+	<key>SUEnableAutomaticChecks</key>
+	<true/>
+	<key>SUEnableInstallerLauncherService</key>
+	<true/>
 	<key>SUFeedURL</key>
 	<string>https://raw.githubusercontent.com/kathoc/peekix-mac/main/appcast.xml</string>
 	<key>SUPublicEDKey</key>
 	<string>DU3QZLrrKTDyyjTGrbrBzMWWuGJEuf5fsYA4tTRIBGs=</string>
-	<key>SUEnableAutomaticChecks</key>
-	<true/>
 	<key>SUScheduledCheckInterval</key>
 	<integer>86400</integer>
-	<key>SUAutomaticallyDownloadsUpdates</key>
-	<false/>
-	<key>SUEnableInstallerLauncherService</key>
-	<true/>
 </dict>
 </plist>

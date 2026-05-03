@@ -128,6 +128,11 @@ final class PlaybackViewModel: NSObject, ObservableObject, PlaybackEngineDelegat
         if isPlaying || status == .connecting {
             wantsToPlay = true
         }
+        // Block any in-flight render and free the mipmap/texture-cache memory
+        // (~10–20 MB) the renderer was holding for the live stream. Recreated
+        // lazily on the first frame after resume.
+        renderer?.isSuspended = true
+        renderer?.releaseTransientResources()
         if reason == .systemSleep {
             // Block briefly so ffmpeg's avformat_close_input completes — that's
             // what sends RTSP TEARDOWN to the camera. Without this the Eufy
@@ -148,6 +153,7 @@ final class PlaybackViewModel: NSObject, ObservableObject, PlaybackEngineDelegat
 
     private func handlePowerResume() {
         powerLogger.info("resume: wantsToPlay=\(self.wantsToPlay, privacy: .public) status=\(String(describing: self.status), privacy: .public)")
+        renderer?.isSuspended = false
         guard wantsToPlay else { return }
         scheduleResumeAttempt()
     }

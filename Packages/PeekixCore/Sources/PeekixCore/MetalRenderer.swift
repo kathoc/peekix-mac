@@ -84,12 +84,30 @@ public final class MetalRenderer: @unchecked Sendable {
         layer.device = device
         layer.pixelFormat = .bgra8Unorm
         layer.framebufferOnly = true
+        // Default is 3; 2 is enough for our push-driven, source-FPS render
+        // cadence and frees one drawable's worth of GPU memory plus lets the
+        // compositor return drawables sooner (lower idle GPU residency).
+        layer.maximumDrawableCount = 2
         self.metalLayer = layer
     }
 
     public func resetZoom() {
         zoomScale = 1.0
         zoomOffset = SIMD2<Float>(0, 0)
+    }
+
+    /// Drop transient GPU memory held while a stream was playing. Called when
+    /// the window is occluded / display sleeps so the ~10–20 MB of mipmapped
+    /// YUV textures and any cached CV->Metal mappings don't sit resident
+    /// during long idle periods. Resources are recreated lazily on the next
+    /// frame, so this is safe to call repeatedly.
+    public func releaseTransientResources() {
+        yMipTexture = nil
+        cbcrMipTexture = nil
+        lastVideoSize = .zero
+        if let cache = textureCache {
+            CVMetalTextureCacheFlush(cache, 0)
+        }
     }
 
     public func render(pixelBuffer: CVPixelBuffer) {
